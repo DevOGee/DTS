@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { FileText, Users, Calculator, Building, Download, Plus, Search } from 'lucide-react';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Textarea } from './ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { FileText, Users, Calculator, Building, Download, Plus, Search, Edit, Trash2, Save, Send, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { useData } from '../contexts/DataContext';
 
 interface Request {
   id: string;
@@ -16,8 +22,13 @@ interface Request {
 }
 
 const RequestManagement = () => {
+  const { programmes } = useData();
   const [activeTab, setActiveTab] = useState('conference');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   // Editable conference request data
   const [conferenceRequest, setConferenceRequest] = useState({
@@ -37,6 +48,131 @@ const RequestManagement = () => {
       'Debriefings and quality reviews'
     ]
   });
+
+  // Digitisation request data
+  const [digitisationRequest, setDigitisationRequest] = useState({
+    ref: 'OUK/ICT/REQ/188',
+    date: '9th April 2026',
+    title: 'CONTENT DIGITISATION FOR 4.1 SEMESTER COURSES',
+    cost: 17565100,
+    description: 'Request for approval to proceed with digitisation of 78 undergraduate courses for the 4.1 Semester',
+    teamSize: 78,
+    duration: '14 days',
+    startDate: 'April 20th 2026',
+    endDate: 'May 3rd 2026'
+  });
+
+  // Course management state
+  const [courses, setCourses] = useState([
+    { id: '1', code: 'BSC-IMT', title: 'Bachelor of Science in Interactive Media Technologies', school: 'School of Science and Technology', level: 'Undergraduate', status: 'pending' },
+    { id: '2', code: 'BSC-MC', title: 'Bachelor of Mathematics and Computing', school: 'School of Science and Technology', level: 'Undergraduate', status: 'pending' },
+    { id: '3', code: 'MSC-DSM', title: 'Master of Science in Digital Services Management', school: 'School of Science and Technology', level: 'Postgraduate', status: 'pending' },
+    { id: '4', code: 'MSC-AI', title: 'Master of Science in Artificial Intelligence', school: 'School of Science and Technology', level: 'Postgraduate', status: 'pending' },
+    { id: '5', code: 'BSC-ATFS', title: 'Bachelor of Agri-Technology and Food Systems', school: 'School of Science and Technology', level: 'Undergraduate', status: 'pending' }
+  ]);
+
+  // Financial data state
+  const [financialData, setFinancialData] = useState([
+    { id: '1', name: 'Alfred Muriu', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200, category: 'external' },
+    { id: '2', name: 'Charles Irungu', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200, category: 'external' },
+    { id: '3', name: 'Duncan Kiprotich', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200, category: 'external' },
+    { id: '4', name: 'Evans Abuga', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200, category: 'external' },
+    { id: '5', name: 'Farid Muigu', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200, category: 'external' }
+  ]);
+
+  // New course form state
+  const [newCourse, setNewCourse] = useState({
+    code: '',
+    title: '',
+    school: '',
+    level: 'Undergraduate',
+    status: 'pending'
+  });
+
+  // New financial entry state
+  const [newFinancialEntry, setNewFinancialEntry] = useState({
+    name: '',
+    role: '',
+    rate: 0,
+    days: 14,
+    category: 'external'
+  });
+
+  // CRUD Operations
+  const addCourse = () => {
+    if (newCourse.code && newCourse.title && newCourse.school) {
+      const course = {
+        id: Date.now().toString(),
+        ...newCourse
+      };
+      setCourses([...courses, course]);
+      setNewCourse({ code: '', title: '', school: '', level: 'Undergraduate', status: 'pending' });
+      setShowAddDialog(false);
+    }
+  };
+
+  const updateCourse = (id: string, updates: Partial<typeof courses[0]>) => {
+    setCourses(courses.map(course => 
+      course.id === id ? { ...course, ...updates } : course
+    ));
+  };
+
+  const deleteCourse = (id: string) => {
+    setCourses(courses.filter(course => course.id !== id));
+  };
+
+  const addFinancialEntry = () => {
+    if (newFinancialEntry.name && newFinancialEntry.role && newFinancialEntry.rate > 0) {
+      const entry = {
+        id: Date.now().toString(),
+        ...newFinancialEntry,
+        dsa: newFinancialEntry.rate * newFinancialEntry.days
+      };
+      setFinancialData([...financialData, entry]);
+      setNewFinancialEntry({ name: '', role: '', rate: 0, days: 14, category: 'external' });
+    }
+  };
+
+  const updateFinancialEntry = (id: string, updates: Partial<typeof financialData[0]>) => {
+    setFinancialData(financialData.map(entry => 
+      entry.id === id ? { ...entry, ...updates, dsa: (updates.rate || entry.rate) * (updates.days || entry.days) } : entry
+    ));
+  };
+
+  const deleteFinancialEntry = (id: string) => {
+    setFinancialData(financialData.filter(entry => entry.id !== id));
+  };
+
+  const approveRequest = (requestId: string) => {
+    // Update request status to approved
+    console.log(`Request ${requestId} approved`);
+    setShowApproveDialog(false);
+  };
+
+  const rejectRequest = (requestId: string) => {
+    // Update request status to rejected
+    console.log(`Request ${requestId} rejected`);
+  };
+
+  const generatePDF = (requestType: string) => {
+    // PDF generation logic
+    console.log(`Generating PDF for ${requestType}`);
+  };
+
+  const exportToCSV = (data: any[], filename: string) => {
+    // CSV export logic
+    console.log(`Exporting ${filename}`);
+  };
+
+  // Calculate totals
+  const calculateTotals = () => {
+    const externalTotal = financialData.filter(f => f.category === 'external').reduce((sum, f) => sum + f.dsa, 0);
+    const internalTotal = financialData.filter(f => f.category === 'internal').reduce((sum, f) => sum + f.dsa, 0);
+    const conferenceCost = 3990000; // Fixed conference cost
+    const grandTotal = externalTotal + internalTotal + conferenceCost;
+    
+    return { externalTotal, internalTotal, conferenceCost, grandTotal };
+  };
 
   // Sample requests data
   const requests: Request[] = [
@@ -59,55 +195,7 @@ const RequestManagement = () => {
     }
   ];
 
-  // Updated programmes structure with correct schools
-  const programmes = [
-    // School of Science and Technology - 10 Programmes
-    { school: 'School of Science and Technology', code: 'BSC-IMT', title: 'Bachelor of Science in Interactive Media Technologies', level: 'Undergraduate' },
-    { school: 'School of Science and Technology', code: 'BSC-MC', title: 'Bachelor of Mathematics and Computing', level: 'Undergraduate' },
-    { school: 'School of Science and Technology', code: 'MSC-DSM', title: 'Master of Science in Digital Services Management', level: 'Postgraduate' },
-    { school: 'School of Science and Technology', code: 'MSC-AI', title: 'Master of Science in Artificial Intelligence', level: 'Postgraduate' },
-    { school: 'School of Science and Technology', code: 'BSC-ATFS', title: 'Bachelor of Agri-Technology and Food Systems', level: 'Undergraduate' },
-    { school: 'School of Science and Technology', code: 'MSC-CDF', title: 'Master of Science in Cybersecurity and Digital Forensics', level: 'Postgraduate' },
-    { school: 'School of Science and Technology', code: 'BSC-CDF', title: 'Bachelor of Science in Cybersecurity and Digital Forensics', level: 'Undergraduate' },
-    { school: 'School of Science and Technology', code: 'BSC-DS', title: 'Bachelor of Data Science', level: 'Undergraduate' },
-    { school: 'School of Science and Technology', code: 'BSC-CS', title: 'Bachelor of Science in Computer Science', level: 'Undergraduate' },
-    { school: 'School of Science and Technology', code: 'MSC-DS', title: 'Master of Data Science', level: 'Postgraduate' },
-    
-    // School of Education - 7 Programmes
-    { school: 'School of Education', code: 'PGDE', title: 'Postgraduate Diploma in Education', level: 'Postgraduate' },
-    { school: 'School of Education', code: 'MLDT', title: 'Master in Learning Design and Technology (MLDT)', level: 'Postgraduate' },
-    { school: 'School of Education', code: 'PHD-ELP', title: 'Doctor of Philosophy in Educational Leadership and Policy', level: 'Doctorate' },
-    { school: 'School of Education', code: 'MTE', title: 'Masters of Technology Education', level: 'Postgraduate' },
-    { school: 'School of Education', code: 'MED-ELP', title: 'Master of Education in Educational Leadership and Policy', level: 'Postgraduate' },
-    { school: 'School of Education', code: 'PGDT', title: 'Postgraduate Diploma in Learning Design and Technology', level: 'Postgraduate' },
-    { school: 'School of Education', code: 'BTE', title: 'Bachelor of Technology Education', level: 'Undergraduate' },
-    
-    // School of Business and Economics - 7 Programmes
-    { school: 'School of Business and Economics', code: 'PHD-BM', title: 'Doctor of Philosophy in Business Management', level: 'Doctorate' },
-    { school: 'School of Business and Economics', code: 'MBA', title: 'Master of Business Administration', level: 'Postgraduate' },
-    { school: 'School of Business and Economics', code: 'PGDLA', title: 'Postgraduate Diploma in Leadership and Accountability', level: 'Postgraduate' },
-    { school: 'School of Business and Economics', code: 'BBE', title: 'Bachelor of Business and Entrepreneurship', level: 'Undergraduate' },
-    { school: 'School of Business and Economics', code: 'BES', title: 'Bachelor of Economics and Statistics', level: 'Undergraduate' },
-    { school: 'School of Business and Economics', code: 'BEDS', title: 'Bachelor of Economics and Data Science', level: 'Undergraduate' },
-    { school: 'School of Business and Economics', code: 'BCOM', title: 'Bachelor of Commerce', level: 'Undergraduate' }
-  ];
-
-  // Sample courses for display (showing first 10)
-  const courses = programmes.slice(0, 10).map((prog, index) => ({
-    code: prog.code,
-    title: prog.title,
-    programme: prog.school,
-    level: prog.level
-  }));
-
-  const financialData = [
-    { name: 'Alfred Muriu', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200 },
-    { name: 'Charles Irungu', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200 },
-    { name: 'Duncan Kiprotich', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200 },
-    { name: 'Evans Abuga', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200 },
-    { name: 'Farid Muigu', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200 }
-  ];
-
+  
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved': return 'bg-green-100 text-green-800';
@@ -384,27 +472,27 @@ const RequestManagement = () => {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left p-2">#</th>
-                        <th className="text-left p-2">Programme Code</th>
-                        <th className="text-left p-2">Programme Title</th>
-                        <th className="text-left p-2">School</th>
-                        <th className="text-left p-2">Level</th>
+                        <th className="text-left p-2">Programme ID</th>
+                        <th className="text-left p-2">Programme Name</th>
+                        <th className="text-left p-2">Current Level</th>
+                        <th className="text-left p-2">Award Type</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {courses.map((course, index) => (
-                        <tr key={index} className="border-b border-border hover:bg-muted/50">
+                      {programmes.map((programme, index) => (
+                        <tr key={programme.id} className="border-b border-border hover:bg-muted/50">
                           <td className="p-2">{index + 1}</td>
-                          <td className="p-2 font-mono">{course.code}</td>
-                          <td className="p-2">{course.title}</td>
+                          <td className="p-2 font-mono">{programme.id}</td>
+                          <td className="p-2">{programme.name}</td>
                           <td className="p-2">
-                            <Badge variant="outline" className="text-xs">{course.programme}</Badge>
+                            <Badge variant="outline" className="text-xs">{programme.currentLevel}</Badge>
                           </td>
                           <td className="p-2">
                             <Badge 
-                              variant={course.level === 'Undergraduate' ? 'default' : course.level === 'Postgraduate' ? 'secondary' : 'destructive'}
+                              variant={programme.awardType === 'Degree' ? 'default' : programme.awardType === 'Postgraduate' ? 'secondary' : 'destructive'}
                               className="text-xs"
                             >
-                              {course.level}
+                              {programme.awardType}
                             </Badge>
                           </td>
                         </tr>
