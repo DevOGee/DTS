@@ -1,0 +1,73 @@
+DTS
+Act as an expert Senior Systems Architect and Full-Stack Developer. I need you to build a complete, fully functional web application called the **OUK Digitisation Tracking System (v4)**. The system must handle complex academic hierarchies, real-time progress tracking, and detailed financial/attendance management. Use **PostgreSQL** for the database. 
+
+> **CRITICAL SPELLING RULE:** You must strictly use British English spelling for "Digitisation", "Digitiser", and "Programmes". Do NOT use "Digitization", "Digitizer", or "Programs" anywhere in the UI, variables, or database structure.
+
+**Global Application Rules:**
+* **100% CRUD Capability:** EVERY module, list, log, and metric must be fully editable in both the frontend and backend. Saving changes must trigger an informative success message. Errors must trigger clear, informative error messages.
+* **Bulk Uploads:** Every module must support CSV bulk upload via drag-and-drop, allowing the user to preview the first 5 rows before committing. Downloadable CSV templates must be provided for each module.
+* **Dynamic UI Elements:** Each group (A through F) must have its own assigned, customizable color tile.
+
+---
+
+### 1. Database Structure (PostgreSQL) & Scaling
+The system must be hierarchical, accommodating the shift from Level 3.2 to 4.1 and new Programmes.
+* **Programme Master Table:** Columns for Programme Name, Current Level (e.g., 1.1, 3.2, 4.1), Award Type (Degree, TVET, Post-Grad).
+* **Module Inventory Table:** Columns for Course Code, Programme, Level, Module Number (1-10), Digitisation Status, Assigned Group. 
+* **Formulas & Logic:** * Total expected modules = Count of Courses * 10.
+    * Level Transition Logic: Implement backend logic indicating `=IF(AND(Status="Complete", Level="3.2"), "Ready for 4.1 Transition", "In Progress")`.
+    * Use Data Validation to ensure "Course Type" is strictly "Technical" or "Non-Technical".
+    * Conditional Formatting: Level 4.1 courses must be highlighted differently to distinguish them from the older Level 3.2 batch.
+
+### 2. Login Page & Branding
+* **Clean UI:** The login page must be minimal. Render a white background container to ensure the logo is highly visible against the teal/dark background.
+* **Elements:** Display ONLY the OUK Logo (`https://ouk.ac.ke/sites/default/files/gallery/logo_footer.png`), the title "Digitisation Tracking System", and the login form. 
+* **Restriction:** Do NOT show venue details, dates, or participant stats on the login page. Keep those inside the authenticated dashboard.
+
+### 3. Role-Based Access Control (RBAC)
+Implement a login system with the following test accounts:
+* **System Admin (`admin` / `admin123`):** Full access to everything, including Admin Settings and user creation.
+* **Programme Lead (`plead` / `plead123`):** View and edit content, but no access to the Admin Settings panel.
+* **Group Leader (`gleader` / `gleader123`):** Can only view and edit data for their specifically assigned group. Cannot delete records.
+* **Viewer/Digitiser (`viewer` / `viewer123`):** Read-only access. Hide all edit/delete/add buttons.
+
+### 4. Admin Settings Module
+* **📅 Workshop Dates:** Input for "Start Date" (Default to: Sun, 22 Mar 2026) and "Number of Days". The system must auto-calculate the "End Date" and ripple this change to the dashboard countdown, attendance tabs, and daily targets.
+* **👥 User Management:** Add, edit, and delete system users and assign their roles.
+* **📊 DSA Rate Config:** Manage base DSA rates. Defaults: In-County (35%), Out-County (100%).
+* **🎨 Group Colour Config:** Color pickers for Groups A through F.
+* **🗂️ Data Management:** Export all data or reset to system defaults.
+
+### 5. Dashboard Module
+* **Venue Data:** JKUAT Main Campus | 84 Participants (45 Internal + 39 External) | 56 Courses · 560 Modules.
+* **⏱ Countdown Clock:** Target: Auto-calculated end date at 4:00 PM. Format: `[Days]:[Hours]:[Minutes]:[Seconds]`.
+* **Status Overview Donut Chart:** A large donut chart with the overall % complete inside the center circle. 
+* **Filters (Slicers):** Filter the dashboard data by Programme Level (e.g., only 3.2 or 4.1), Programme Type (Short Courses vs. Main Degrees), and Group (A–F).
+* **Daily Velocity:** Compare "Actual Completed Modules" vs "Target" (Total Modules / Number of Days).
+
+### 6. DT Workshops Module
+* Manage Digitisation Workshop runs.
+* Use "Smart" categorization tabs: Active/In Progress (with a pulsing green dot 🟢), Upcoming (🔵), and Completed (✅). 
+* Allow full Add/Edit/Delete on each workshop card.
+
+### 7. Course & Participant Management
+* **Courses Inventory:** 56 Courses total. Must include separate fields for "Source Drive Link" (original document) and "LMS Link" (digitised course).
+* **Participant Directory:** Fully editable directory. Admins can change a participant's name, group, assigned days, role, and DSA Type (In-County vs. Out-County). 
+
+### 8. DSA & Payment Schedule Module
+* **DSA Payment Register:** Calculates payment based on the assigned rate (In-County 35% or Out-County 100%) applied to the base rate. Includes a live DSA preview on the participant edit modal.
+* **Payment Schedule (Exportable):** Columns: Name, Amount, Bank Name, Bank Branch, Bank Code, Account Number. All rows must be editable.
+
+### 9. Attendance Module
+* **Structure:** Create clickable tabs for Day 1 through Day 7 (based on the Admin Settings duration).
+* **UI:** Display a grid of participants with check-boxes for marking attendance per day. 
+* **Features:** Include a running percentage bar of attendance, a "Mark All Present" button, and a CSV export function.
+
+### 10. Multimedia Tracker Module
+* **Overview:** Display 3 top-level tiles tracking total videos, total courses, and overall status.
+* **Group Tiles:** Create one tile per group (A-F). 
+* **Logic:** The expected number of videos per group must exactly equal the number of courses assigned to that group. Display the name of the assigned MM Digitiser on the group tile.
+
+### 11. Phase Checklist Module
+* **"Before" (Pre-Flight):** Finalise template and optimise DIG LMS, Categories creation (Short & Main courses), Load templates, Loading courses, Group Accounts creation in LMS & Google Sheet allocations, Content confirmation for all schools, Dispatch of Invites (External, Internal Admins, Internal Management).
+* **"After" (Close-Out):** Digitisation report, Digitisation memo, Invitation Letters (Internal & External), Appointment letters, Digitisation Schedule, OUK Attendance List & Hotel List, and the final action must be: **Preparation of Payment Schedule**.
