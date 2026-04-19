@@ -53,9 +53,9 @@ const RequestManagement = () => {
   const [digitisationRequest, setDigitisationRequest] = useState({
     ref: 'OUK/ICT/REQ/188',
     date: '9th April 2026',
-    title: 'CONTENT DIGITISATION FOR 4.1 SEMESTER COURSES',
+    title: 'CONTENT DIGITISATION FOR Level 4.1 SEMESTER COURSES',
     cost: 17565100,
-    description: 'Request for approval to proceed with digitisation of 78 undergraduate courses for the 4.1 Semester',
+    description: 'Request for approval to proceed with digitisation of 78 undergraduate courses for the Level 4.1 Semester',
     teamSize: 78,
     duration: '14 days',
     startDate: 'April 20th 2026',
@@ -179,7 +179,7 @@ const RequestManagement = () => {
     {
       id: 'REQ-001',
       type: 'conference',
-      title: 'REQUEST FOR CONFERENCE FACILITY AND MEALS - 4.1 DIGITISATION',
+      title: 'REQUEST FOR CONFERENCE FACILITY AND MEALS - Level 4.1 DIGITISATION',
       status: 'pending',
       date: '2026-04-09',
       recipient: 'Vice-Chancellor'
@@ -187,7 +187,7 @@ const RequestManagement = () => {
     {
       id: 'REQ-002', 
       type: 'digitisation',
-      title: 'CONTENT DIGITISATION FOR 4.1 SEMESTER COURSES',
+      title: 'CONTENT DIGITISATION FOR Level 4.1 SEMESTER COURSES',
       status: 'approved',
       date: '2026-04-09',
       amount: 17565100,
@@ -255,7 +255,7 @@ const RequestManagement = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building className="w-5 h-5" />
-                REQUEST FOR CONFERENCE FACILITY AND MEALS - 4.1 DIGITISATION
+                REQUEST FOR CONFERENCE FACILITY AND MEALS - Level 4.1 DIGITISATION
               </CardTitle>
               <CardDescription>
                 Conference facilities and meals request for digitisation workshop
@@ -390,7 +390,7 @@ const RequestManagement = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                CONTENT DIGITISATION FOR 4.1 SEMESTER COURSES
+                CONTENT DIGITISATION FOR Level 4.1 SEMESTER COURSES
               </CardTitle>
               <CardDescription>
                 Request for approval to proceed with digitisation of 78 undergraduate courses
@@ -419,7 +419,7 @@ const RequestManagement = () => {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Project Details</label>
                 <ul className="mt-2 space-y-1 text-sm">
-                  <li>78 undergraduate courses for 4.1 Semester</li>
+                  <li>78 undergraduate courses for Level 4.1 Semester</li>
                   <li>Dedicated team of supervised digitisers</li>
                   <li>Daily deployment for course material conversion</li>
                   <li>Quality standards and target achievement focus</li>

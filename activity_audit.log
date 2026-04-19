@@ -1,0 +1,28 @@
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 893-563-508
+127.0.0.1 - - [20/Apr/2026 00:29:37] "GET /logs?limit=10&offset=0 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:29:37] "GET /logs/statistics HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:29:37] "OPTIONS /action HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:29:37] "OPTIONS /action HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:29:37] "GET /logs?limit=10&offset=0 HTTP/1.1" 200 -
+{"timestamp": "2026-04-19T21:29:37.974527Z", "action": "Page accessed: Reports Dashboard", "status": "info", "network": {"ip": "127.0.0.1"}, "geo_location": {"note": "Localhost - No Geo Data"}, "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:149.0) Gecko/20100101 Firefox/149.0"}
+127.0.0.1 - - [20/Apr/2026 00:29:37] "POST /action HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:29:37] "GET /logs/statistics HTTP/1.1" 200 -
+{"timestamp": "2026-04-19T21:29:37.978661Z", "action": "Page accessed: Reports Dashboard", "status": "info", "network": {"ip": "127.0.0.1"}, "geo_location": {"note": "Localhost - No Geo Data"}, "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:149.0) Gecko/20100101 Firefox/149.0"}
+127.0.0.1 - - [20/Apr/2026 00:29:37] "POST /action HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:29:44] "GET /logs?limit=10&offset=10 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:29:44] "GET /logs/statistics HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:43:56] "GET /logs?limit=10&offset=0 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:43:56] "GET /logs/statistics HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:43:56] "OPTIONS /action HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:43:56] "OPTIONS /action HTTP/1.1" 200 -
+{"timestamp": "2026-04-19T21:43:56.501272Z", "action": "Page accessed: Reports Dashboard", "status": "info", "network": {"ip": "127.0.0.1"}, "geo_location": {"note": "Localhost - No Geo Data"}, "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:149.0) Gecko/20100101 Firefox/149.0"}
+127.0.0.1 - - [20/Apr/2026 00:43:56] "POST /action HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:43:56] "GET /logs?limit=10&offset=0 HTTP/1.1" 200 -
+127.0.0.1 - - [20/Apr/2026 00:43:56] "GET /logs/statistics HTTP/1.1" 200 -
+{"timestamp": "2026-04-19T21:43:56.507336Z", "action": "Page accessed: Reports Dashboard", "status": "info", "network": {"ip": "127.0.0.1"}, "geo_location": {"note": "Localhost - No Geo Data"}, "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:149.0) Gecko/20100101 Firefox/149.0"}
+127.0.0.1 - - [20/Apr/2026 00:43:56] "POST /action HTTP/1.1" 200 -

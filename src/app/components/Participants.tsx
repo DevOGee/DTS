@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Search, Plus, Edit, Trash2, Users, DollarSign, X, Save } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Search, Plus, Edit, Trash2, Users, DollarSign, X, Save, Upload, Download, FileText, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { GROUPS, Group, Participant } from '../data/mockData';
@@ -17,13 +17,177 @@ export function Participants() {
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; data: Participant | null } | null>(null);
   const [form, setForm] = useState<Omit<Participant, 'id'>>(EMPTY);
   const [toast, setToast] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canAdd = user?.role !== 'Viewer';
+  const canAdd = user?.role !== 'Viewer/Digitiser';
   const canEdit = (g: Group) => user?.role === 'System Admin' || user?.role === 'Programme Lead' || (user?.role === 'Group Leader' && user.group === g);
   const canDelete = () => user?.role === 'System Admin';
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
   const calcDSA = (p: Omit<Participant, 'id'>) => Math.round(p.daysAttending * baseDailyRate * dsaRates[p.dsaType]);
+
+  // CSV Export Function
+  const exportToCSV = () => {
+    const headers = ['Name', 'Email', 'Role', 'Group', 'DSA Type', 'Days Attending', 'DSA Amount'];
+    const csvData = filtered.map(participant => [
+      participant.name,
+      participant.email,
+      participant.role,
+      participant.group,
+      participant.dsaType,
+      participant.daysAttending,
+      calcDSA(participant)
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `participants_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Participants exported successfully!');
+  };
+
+  // Download Template Function
+  const downloadTemplate = () => {
+    const headers = ['Name*', 'Email*', 'Role*', 'Group*', 'DSA Type*', 'Days Attending'];
+    const sampleData = [
+      ['John Doe', 'john.doe@ouk.ac.ke', 'Content Digitiser', 'A', 'In-County', '7'],
+      ['Jane Smith', 'jane.smith@ouk.ac.ke', 'Multimedia Digitiser', 'B', 'Out-County', '5']
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'participants_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Template downloaded successfully!');
+  };
+
+  // CSV Upload Function
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadErrors([]);
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        setUploadErrors(['CSV file must contain at least a header row and one data row']);
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const expectedHeaders = ['Name*', 'Email*', 'Role*', 'Group*', 'DSA Type*', 'Days Attending'];
+      
+      // Validate headers
+      const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
+      if (missingHeaders.length > 0) {
+        setUploadErrors([`Missing required columns: ${missingHeaders.join(', ')}`]);
+        return;
+      }
+
+      const newParticipants: Participant[] = [];
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        try {
+          const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+          const rowData: any = {};
+          
+          headers.forEach((header, index) => {
+            rowData[header] = values[index] || '';
+          });
+
+          // Validate required fields
+          if (!rowData['Name*'] || !rowData['Email*'] || !rowData['Role*'] || !rowData['Group*'] || !rowData['DSA Type*']) {
+            errors.push(`Row ${i + 1}: Missing required fields`);
+            continue;
+          }
+
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(rowData['Email*'])) {
+            errors.push(`Row ${i + 1}: Invalid email format`);
+            continue;
+          }
+
+          // Validate group
+          if (!GROUPS.includes(rowData['Group*'])) {
+            errors.push(`Row ${i + 1}: Invalid group "${rowData['Group*']}"`);
+            continue;
+          }
+
+          // Validate DSA type
+          if (!['In-County', 'Out-County'].includes(rowData['DSA Type*'])) {
+            errors.push(`Row ${i + 1}: Invalid DSA type "${rowData['DSA Type*']}"`);
+            continue;
+          }
+
+          // Validate role
+          const validRoles = ['Content Digitiser', 'Multimedia Digitiser', 'Group Leader', 'Programme Lead', 'System Admin', 'Viewer/Digitiser'];
+          if (!validRoles.includes(rowData['Role*'])) {
+            errors.push(`Row ${i + 1}: Invalid role "${rowData['Role*']}"`);
+            continue;
+          }
+
+          const newParticipant: Participant = {
+            id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: rowData['Name*'],
+            email: rowData['Email*'],
+            role: rowData['Role*'],
+            group: rowData['Group*'] as Group,
+            dsaType: rowData['DSA Type*'] as 'In-County' | 'Out-County',
+            daysAttending: parseInt(rowData['Days Attending']) || 7
+          };
+
+          newParticipants.push(newParticipant);
+        } catch (error) {
+          errors.push(`Row ${i + 1}: Error processing row - ${error}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        setUploadErrors(errors);
+      } else {
+        // Add all participants
+        for (const participant of newParticipants) {
+          addParticipant(participant);
+        }
+        showToast(`Successfully imported ${newParticipants.length} participants!`);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    } catch (error) {
+      setUploadErrors([`Error reading file: ${error}`]);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const filtered = useMemo(() => participants.filter(p => {
     const s = search.toLowerCase();
@@ -69,8 +233,50 @@ export function Participants() {
           <h1 className="text-3xl font-semibold mb-1">Participant Management</h1>
           <p className="text-muted-foreground text-sm">Manage workshop participants and DSA allowances</p>
         </div>
-        {canAdd && <button onClick={openAdd} className="btn btn-primary"><Plus className="w-4 h-4" /> Add Participant</button>}
+        <div className="flex gap-2">
+          {canAdd && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button onClick={() => fileInputRef.current?.click()} className="btn btn-muted" disabled={isUploading}>
+                <Upload className="w-4 h-4" />
+                {isUploading ? 'Uploading...' : 'Bulk Upload'}
+              </button>
+              <button onClick={downloadTemplate} className="btn btn-muted">
+                <FileText className="w-4 h-4" />
+                Template
+              </button>
+              <button onClick={exportToCSV} className="btn btn-muted">
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              <button onClick={openAdd} className="btn btn-primary">
+                <Plus className="w-4 h-4" /> Add Participant
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Upload Errors */}
+      {uploadErrors.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <span className="font-medium text-red-800">Upload Errors</span>
+          </div>
+          <ul className="text-sm text-red-700 space-y-1">
+            {uploadErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

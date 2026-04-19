@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, BookOpen, Users, Settings, LogOut, Menu, X,
   Calendar, User, UserCheck, DollarSign, Video, CheckSquare, FileText, Layers,
-  ChevronLeft, Send,
+  ChevronLeft, Send, Trash2, MessageSquare,
 } from 'lucide-react';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -20,6 +20,7 @@ const NAV = [
   { path: '/reports',      label: 'Reports',      icon: FileText },
   { path: '/workshops',    label: 'Workshops',    icon: Calendar },
   { path: '/requests',     label: 'Requests',     icon: Send },
+  { path: '/recycle-bin',  label: 'Recycle Bin',  icon: Trash2 },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -34,8 +35,8 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   const navItems = user?.role === 'System Admin'
-    ? [...NAV, { path: '/settings', label: 'Settings', icon: Settings }]
-    : NAV;
+    ? [...NAV, { path: '/feedback', label: 'Feedback', icon: MessageSquare }, { path: '/settings', label: 'Settings', icon: Settings }]
+    : [...NAV, { path: '/feedback', label: 'Feedback', icon: MessageSquare }];
 
   const handleLogout = () => { logout(); navigate('/'); };
 

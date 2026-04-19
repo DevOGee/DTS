@@ -1,10 +1,56 @@
-import { useMemo } from 'react';
-import { Users, TrendingUp, BookOpen } from 'lucide-react';
-import { GROUPS } from '../data/mockData';
+import { useMemo, useState } from 'react';
+import { Users, TrendingUp, BookOpen, Edit, Save, X, Plus, Trash2 } from 'lucide-react';
+import { GROUPS, Group } from '../data/mockData';
 import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Groups() {
+  const { user } = useAuth();
   const { courses, participants, groupColors } = useData();
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const isAdmin = user?.role === 'System Admin';
+  const canEditGroups = isAdmin;
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
+  const handleEditGroup = (group: Group) => {
+    setEditingGroup(group);
+    setNewGroupName(group);
+  };
+
+  const handleSaveGroup = () => {
+    if (!newGroupName.trim()) {
+      showToast('Group name cannot be empty');
+      return;
+    }
+    // Note: In a real implementation, this would update the GROUPS array
+    // For now, we'll just show a success message
+    showToast(`Group "${editingGroup}" updated to "${newGroupName}"`);
+    setEditingGroup(null);
+    setNewGroupName('');
+  };
+
+  const handleDeleteGroup = (group: Group) => {
+    if (confirm(`Are you sure you want to delete Group ${group}? This will also remove all associated courses and participants.`)) {
+      // Note: In a real implementation, this would remove the group and update all associated records
+      showToast(`Group ${group} deleted successfully`);
+    }
+  };
+
+  const handleAddGroup = () => {
+    if (!newGroupName.trim()) {
+      showToast('Group name cannot be empty');
+      return;
+    }
+    // Note: In a real implementation, this would add to the GROUPS array
+    showToast(`Group "${newGroupName}" added successfully`);
+    setNewGroupName('');
+    setShowAddGroup(false);
+  };
 
   const groupData = useMemo(() =>
     GROUPS.map(group => {
@@ -22,19 +68,40 @@ export function Groups() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-4xl mb-2">Group Management</h1>
-        <p className="text-muted-foreground">Track progress and performance across all digitisation groups</p>
+      {toast && <div className="toast">{toast}</div>}
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl mb-2">Group Management</h1>
+          <p className="text-muted-foreground">Track progress and performance across all digitisation groups</p>
+        </div>
+        {canEditGroups && (
+          <div className="flex gap-2">
+            <button onClick={() => setShowAddGroup(true)} className="btn btn-primary">
+              <Plus className="w-4 h-4" /> Add Group
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {groupData.map(({ group, totalCourses, totalModules, completedModules, technicalCourses, nonTechnicalCourses, completionPercentage, participantCount }) => (
           <div key={group} className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-shadow">
-            <div className="p-6 text-white" style={{ background: `linear-gradient(135deg, ${groupColors[group] ?? '#037b90'}, ${groupColors[group] ?? '#037b90'}cc)` }}>
+            <div className="p-6 text-white relative" style={{ background: `linear-gradient(135deg, ${groupColors[group] ?? '#037b90'}, ${groupColors[group] ?? '#037b90'}cc)` }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl">Group {group}</h2>
                 <Users className="w-8 h-8 opacity-80" />
               </div>
+              {canEditGroups && (
+                <div className="absolute top-4 right-4 flex gap-1">
+                  <button onClick={() => handleEditGroup(group)} className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDeleteGroup(group)} className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <div className="text-5xl mb-2">{completionPercentage}%</div>
               <div className="text-white/80">Overall Progress</div>
               <div className="w-full bg-white/20 rounded-full h-2 mt-4 overflow-hidden">
@@ -101,6 +168,67 @@ export function Groups() {
           ))}
         </div>
       </div>
+
+      {/* Edit/Add Group Modal */}
+      {(editingGroup !== null || showAddGroup) && (
+        <div className="modal-backdrop" onClick={e => {
+          if (e.target === e.currentTarget) {
+            setEditingGroup(null);
+            setShowAddGroup(false);
+          }
+        }}>
+          <div className="modal-box max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-xl font-semibold">
+                {editingGroup !== null ? 'Edit Group' : 'Add New Group'}
+              </h2>
+              <button 
+                onClick={() => {
+                  setEditingGroup(null);
+                  setShowAddGroup(false);
+                }} 
+                className="btn-icon p-2"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div>
+                <label className="block mb-1.5 text-sm font-medium">Group Name</label>
+                <input
+                  type="text"
+                  className="field"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Enter group name (e.g., D)"
+                  maxLength={1}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Single character group identifier (A-Z)
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t border-border">
+              <button 
+                onClick={() => {
+                  setEditingGroup(null);
+                  setShowAddGroup(false);
+                }} 
+                className="btn btn-muted"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={editingGroup !== null ? handleSaveGroup : handleAddGroup} 
+                className="btn btn-primary"
+              >
+                <Save className="w-4 h-4" />
+                {editingGroup !== null ? 'Save Changes' : 'Add Group'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

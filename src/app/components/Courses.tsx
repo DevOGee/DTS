@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Search, Edit, Trash2, Plus, ExternalLink, X, Save, BookOpen, Target, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Search, Edit, Trash2, Plus, ExternalLink, X, Save, BookOpen, Target, TrendingUp, CheckCircle2, Upload, Download, FileText, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { GROUPS, Group, mockProgrammes, Course } from '../data/mockData';
@@ -20,8 +20,11 @@ export function Courses() {
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; data: Course | null } | null>(null);
   const [form, setForm] = useState<Omit<Course, 'id'>>(EMPTY);
   const [toast, setToast] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canEdit = user?.role !== 'Viewer';
+  const canEdit = user?.role !== 'Viewer/Digitiser';
   const canDelete = user?.role === 'System Admin';
 
   const levels = useMemo(() => Array.from(new Set(courses.map(c => c.level))).filter(Boolean), [courses]);
@@ -38,6 +41,7 @@ export function Courses() {
   const completedModules = courses.reduce((s, c) => s + c.completedModules, 0);
   const completionPct = totalModules ? Math.round(completedModules / totalModules * 100) : 0;
   const techCount = courses.filter(c => c.courseType === 'Technical').length;
+  const nonTechCount = courses.filter(c => c.courseType === 'Non-Technical').length;
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
@@ -45,20 +49,187 @@ export function Courses() {
   const openEdit = (c: Course) => { setForm({ ...c }); setModal({ mode: 'edit', data: c }); };
   const closeModal = () => setModal(null);
 
+  // CSV Export Function
+  const exportToCSV = () => {
+    const headers = ['Course Code', 'Course Name', 'Programme', 'Level', 'Course Type', 'Assigned Group', 'Completed Modules', 'Total Modules', 'Source Doc Link', 'LMS Link'];
+    const csvData = filtered.map(course => {
+      const programme = mockProgrammes.find(p => p.id === course.programmeId);
+      return [
+        course.code,
+        course.name,
+        programme?.name || '',
+        course.level,
+        course.courseType,
+        course.assignedGroup,
+        course.completedModules,
+        course.totalModules,
+        course.sourceDocLink || '',
+        course.lmsLink || ''
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `courses_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Courses exported successfully!');
+  };
+
+  // Download Template Function
+  const downloadTemplate = () => {
+    const headers = ['Course Code*', 'Course Name*', 'Programme*', 'Level*', 'Course Type*', 'Assigned Group*', 'Completed Modules', 'Total Modules', 'Source Doc Link', 'LMS Link'];
+    const sampleData = [
+      ['COURSE101', 'Introduction to Programming', 'Bachelor of Science in Computer Science', 'Level 1.1', 'Technical', 'A', '0', '10', '', ''],
+      ['COURSE102', 'Advanced Mathematics', 'Bachelor of Mathematics and Computing', 'Level 2.1', 'Technical', 'B', '5', '10', '', '']
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'courses_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Template downloaded successfully!');
+  };
+
+  // CSV Upload Function
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadErrors([]);
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        setUploadErrors(['CSV file must contain at least a header row and one data row']);
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const expectedHeaders = ['Course Code*', 'Course Name*', 'Programme*', 'Level*', 'Course Type*', 'Assigned Group*', 'Completed Modules', 'Total Modules', 'Source Doc Link', 'LMS Link'];
+      
+      // Validate headers
+      const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
+      if (missingHeaders.length > 0) {
+        setUploadErrors([`Missing required columns: ${missingHeaders.join(', ')}`]);
+        return;
+      }
+
+      const newCourses: Course[] = [];
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        try {
+          const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+          const rowData: any = {};
+          
+          headers.forEach((header, index) => {
+            rowData[header] = values[index] || '';
+          });
+
+          // Validate required fields
+          if (!rowData['Course Code*'] || !rowData['Course Name*'] || !rowData['Programme*'] || !rowData['Level*'] || !rowData['Course Type*'] || !rowData['Assigned Group*']) {
+            errors.push(`Row ${i + 1}: Missing required fields`);
+            continue;
+          }
+
+          // Find programme
+          const programme = mockProgrammes.find(p => p.name === rowData['Programme*']);
+          if (!programme) {
+            errors.push(`Row ${i + 1}: Programme "${rowData['Programme*']}" not found`);
+            continue;
+          }
+
+          // Validate group
+          if (!GROUPS.includes(rowData['Assigned Group*'])) {
+            errors.push(`Row ${i + 1}: Invalid group "${rowData['Assigned Group*']}"`);
+            continue;
+          }
+
+          // Validate course type
+          if (!['Technical', 'Non-Technical'].includes(rowData['Course Type*'])) {
+            errors.push(`Row ${i + 1}: Invalid course type "${rowData['Course Type*']}"`);
+            continue;
+          }
+
+          const newCourse: Course = {
+            id: `c-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            code: rowData['Course Code*'],
+            name: rowData['Course Name*'],
+            programmeId: programme.id,
+            level: rowData['Level*'],
+            courseType: rowData['Course Type*'] as 'Technical' | 'Non-Technical',
+            assignedGroup: rowData['Assigned Group*'] as Group,
+            completedModules: parseInt(rowData['Completed Modules']) || 0,
+            totalModules: parseInt(rowData['Total Modules']) || 10,
+            sourceDocLink: rowData['Source Doc Link'],
+            lmsLink: rowData['LMS Link']
+          };
+
+          newCourses.push(newCourse);
+        } catch (error) {
+          errors.push(`Row ${i + 1}: Error processing row - ${error}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        setUploadErrors(errors);
+      } else {
+        // Add all courses
+        for (const course of newCourses) {
+          addCourse(course);
+        }
+        showToast(`Successfully imported ${newCourses.length} courses!`);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    } catch (error) {
+      setUploadErrors([`Error reading file: ${error}`]);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleSave = () => {
-    if (!form.code.trim() || !form.name.trim()) { showToast('⚠️ Course code and name are required.'); return; }
+    if (!form.code.trim() || !form.name.trim()) { showToast('Course code and name are required.'); return; }
     if (modal?.mode === 'add') {
       addCourse({ ...form, id: `c-${Date.now()}` });
-      showToast('✅ Course added successfully.');
+      showToast('Course added successfully.');
     } else if (modal?.data) {
       updateCourse({ ...form, id: modal.data.id });
-      showToast('✅ Course updated successfully.');
+      showToast('Course updated successfully.');
     }
     closeModal();
   };
 
   const handleDelete = (c: Course) => {
-    if (confirm(`Delete "${c.name}"?`)) { removeCourse(c.id); showToast('🗑️ Course deleted.'); }
+    if (confirm(`Delete "${c.name}"?`)) { 
+      removeCourse(c.id, user?.name || 'Unknown'); 
+      showToast('Course moved to recycle bin.'); 
+    }
   };
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -69,17 +240,55 @@ export function Courses() {
       {toast && <div className="toast">{toast}</div>}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="flex-1">
-          <h1 className="text-3xl font-semibold mb-1">Course Management</h1>
-          <p className="text-muted-foreground text-sm">Track digitisation progress across all programmes</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Courses</h1>
+          <p className="text-muted-foreground">Manage course information and track progress</p>
         </div>
-        {canEdit && (
-          <button onClick={openAdd} className="btn btn-primary">
-            <Plus className="w-4 h-4" /> Add Course
-          </button>
-        )}
+        <div className="flex gap-2">
+          {canEdit && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button onClick={() => fileInputRef.current?.click()} className="btn btn-muted" disabled={isUploading}>
+                <Upload className="w-4 h-4" />
+                {isUploading ? 'Uploading...' : 'Bulk Upload'}
+              </button>
+              <button onClick={downloadTemplate} className="btn btn-muted">
+                <FileText className="w-4 h-4" />
+                Template
+              </button>
+              <button onClick={exportToCSV} className="btn btn-muted">
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              <button onClick={openAdd} className="btn btn-primary">
+                <Plus className="w-4 h-4" /> Add Course
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Upload Errors */}
+      {uploadErrors.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <span className="font-medium text-red-800">Upload Errors</span>
+          </div>
+          <ul className="text-sm text-red-700 space-y-1">
+            {uploadErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -87,7 +296,7 @@ export function Courses() {
           { icon: BookOpen, label: 'Total Courses', value: courses.length, color: 'text-primary', bg: 'bg-primary/10' },
           { icon: Target, label: 'Total Modules', value: totalModules, color: 'text-secondary', bg: 'bg-secondary/10' },
           { icon: TrendingUp, label: 'Technical', value: techCount, color: 'text-chart-5', bg: 'bg-chart-5/10' },
-          { icon: CheckCircle2, label: 'Completion', value: `${completionPct}%`, color: 'text-chart-3', bg: 'bg-chart-3/10' },
+          { icon: CheckCircle2, label: 'Non-Technical', value: nonTechCount, color: 'text-chart-4', bg: 'bg-chart-4/10' },
         ].map(({ icon: Icon, label, value, color, bg }) => (
           <div key={label} className="bg-card rounded-2xl p-5 border border-border card-hover">
             <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
@@ -117,7 +326,7 @@ export function Courses() {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <input className="field pl-9" placeholder="Search by code or name…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input className="field pl-9" placeholder="Search by code or name" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <select className="field sm:w-36" value={filterGroup} onChange={e => setFilterGroup(e.target.value as any)}>
               <option value="all">All Groups</option>
@@ -130,19 +339,24 @@ export function Courses() {
             </select>
             <select className="field sm:w-36" value={filterLevel} onChange={e => setFilterLevel(e.target.value)}>
               <option value="all">All Levels</option>
-              {levels.map(l => <option key={l} value={l}>Level {l}</option>)}
+              {levels.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
         </div>
 
-        {/* Desktop table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                {['Code', 'Course Name', 'Level', 'Type', 'Group', 'Progress', 'Links', 'Actions'].map(h => (
-                  <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
-                ))}
+                <th className="text-left p-4 font-semibold text-sm">Code</th>
+                <th className="text-left p-4 font-semibold text-sm">Course</th>
+                <th className="text-left p-4 font-semibold text-sm">Level</th>
+                <th className="text-left p-4 font-semibold text-sm">Type</th>
+                <th className="text-left p-4 font-semibold text-sm">Group</th>
+                <th className="text-left p-4 font-semibold text-sm">Progress</th>
+                <th className="text-left p-4 font-semibold text-sm">Links</th>
+                <th className="text-left p-4 font-semibold text-sm">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -193,37 +407,6 @@ export function Courses() {
           </table>
         </div>
 
-        {/* Mobile cards */}
-        <div className="md:hidden divide-y divide-border">
-          {filtered.map(course => {
-            const pct = Math.round(course.completedModules / course.totalModules * 100);
-            return (
-              <div key={course.id} className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold">{course.name}</div>
-                    <div className="text-xs font-mono text-primary mt-0.5">{course.code}</div>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    {canEdit && <button onClick={() => openEdit(course)} className="btn-icon btn-icon-primary"><Edit className="w-4 h-4" /></button>}
-                    {canDelete && <button onClick={() => handleDelete(course)} className="btn-icon btn-icon-danger"><Trash2 className="w-4 h-4" /></button>}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="badge badge-primary">Grp {course.assignedGroup}</span>
-                  <span className={course.courseType === 'Technical' ? 'badge badge-primary' : 'badge badge-muted'}>{course.courseType}</span>
-                  <span className="badge badge-muted">L{course.level}</span>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs mb-1"><span>Progress</span><span>{course.completedModules}/{course.totalModules} ({pct}%)</span></div>
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden"><div className="progress-bar" style={{ width: `${pct}%` }} /></div>
-                </div>
-              </div>
-            );
-          })}
-          {filtered.length === 0 && <div className="py-10 text-center text-muted-foreground text-sm">No courses match your filters.</div>}
-        </div>
-
         <div className="px-5 py-3 border-t border-border flex justify-between text-xs text-muted-foreground">
           <span>Showing {filtered.length} of {courses.length} courses</span>
           <span>{completedModules} modules complete</span>
@@ -244,57 +427,55 @@ export function Courses() {
                 <input className="field" value={form.code} onChange={set('code')} placeholder="e.g. HCT 100" />
               </div>
               <div>
-                <label className="block mb-1.5 text-sm font-medium">Level</label>
-                <input className="field" value={form.level} onChange={set('level')} placeholder="e.g. 100" />
-              </div>
-              <div className="sm:col-span-2">
                 <label className="block mb-1.5 text-sm font-medium">Course Name *</label>
-                <input className="field" value={form.name} onChange={set('name')} placeholder="Full course name" />
+                <input className="field" value={form.name} onChange={set('name')} placeholder="Course name" />
               </div>
               <div>
-                <label className="block mb-1.5 text-sm font-medium">Programme</label>
+                <label className="block mb-1.5 text-sm font-medium">Programme *</label>
                 <select className="field" value={form.programmeId} onChange={set('programmeId')}>
                   {mockProgrammes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block mb-1.5 text-sm font-medium">Type</label>
+                <label className="block mb-1.5 text-sm font-medium">Level *</label>
+                <input className="field" value={form.level} onChange={set('level')} placeholder="e.g. 1.1" />
+              </div>
+              <div>
+                <label className="block mb-1.5 text-sm font-medium">Course Type *</label>
                 <select className="field" value={form.courseType} onChange={set('courseType')}>
                   <option value="Technical">Technical</option>
                   <option value="Non-Technical">Non-Technical</option>
                 </select>
               </div>
               <div>
-                <label className="block mb-1.5 text-sm font-medium">Assigned Group</label>
+                <label className="block mb-1.5 text-sm font-medium">Assigned Group *</label>
                 <select className="field" value={form.assignedGroup} onChange={set('assignedGroup')}>
                   {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block mb-1.5 text-sm font-medium">Completed Modules (0–10)</label>
-                <input type="number" className="field" min={0} max={10} value={form.completedModules}
-                  onChange={e => setForm(f => ({ ...f, completedModules: Math.min(10, Math.max(0, Number(e.target.value))) }))} />
+                <label className="block mb-1.5 text-sm font-medium">Completed Modules</label>
+                <input type="number" className="field" value={form.completedModules} onChange={e => setForm(f => ({ ...f, completedModules: Number(e.target.value) }))} min={0} max={form.totalModules} />
               </div>
               <div>
-                <label className="block mb-1.5 text-sm font-medium">Source Doc Link</label>
-                <input className="field" value={form.sourceDocLink} onChange={set('sourceDocLink')} placeholder="https://…" />
+                <label className="block mb-1.5 text-sm font-medium">Total Modules</label>
+                <input type="number" className="field" value={form.totalModules} onChange={e => setForm(f => ({ ...f, totalModules: Number(e.target.value) }))} min={1} />
               </div>
-              <div>
+              <div className="sm:col-span-2">
+                <label className="block mb-1.5 text-sm font-medium">Source Document Link</label>
+                <input className="field" value={form.sourceDocLink} onChange={set('sourceDocLink')} placeholder="https://drive.google.com/..." />
+              </div>
+              <div className="sm:col-span-2">
                 <label className="block mb-1.5 text-sm font-medium">LMS Link</label>
-                <input className="field" value={form.lmsLink} onChange={set('lmsLink')} placeholder="https://…" />
-              </div>
-              {/* Progress preview */}
-              <div className="sm:col-span-2 bg-primary/5 rounded-xl p-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Progress preview</span>
-                  <span className="font-semibold text-primary">{form.completedModules}/10 modules · {form.completedModules * 10}%</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2 overflow-hidden"><div className="progress-bar" style={{ width: `${form.completedModules * 10}%` }} /></div>
+                <input className="field" value={form.lmsLink} onChange={set('lmsLink')} placeholder="https://lms.ouk.ac.ke/..." />
               </div>
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-border">
               <button onClick={closeModal} className="btn btn-muted">Cancel</button>
-              <button onClick={handleSave} className="btn btn-primary"><Save className="w-4 h-4" /> Save Course</button>
+              <button onClick={handleSave} className="btn btn-primary">
+                <Save className="w-4 h-4" />
+                {modal.mode === 'add' ? 'Add Course' : 'Update Course'}
+              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
+import { RecycleBinProvider } from './contexts/RecycleBinContext';
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
@@ -15,7 +16,9 @@ import { MultimediaTracker } from './components/MultimediaTracker';
 import { PhaseChecklist } from './components/PhaseChecklist';
 import { Reports } from './components/Reports';
 import { AdminSettings } from './components/AdminSettings';
+import { RecycleBin } from './components/RecycleBin';
 import RequestManagement from './components/RequestManagement';
+import { Feedback } from './components/Feedback';
 
 /** Routes that require authentication */
 function ProtectedRoutes() {
@@ -41,6 +44,8 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/workshops" element={<Workshops />} />
         <Route path="/requests" element={<RequestManagement />} />
+        <Route path="/recycle-bin" element={<RecycleBin />} />
+        <Route path="/feedback" element={<Feedback />} />
         <Route path="/settings" element={<AdminSettings />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
@@ -71,10 +76,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <DataProvider>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </DataProvider>
+    <RecycleBinProvider>
+      <DataProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </DataProvider>
+    </RecycleBinProvider>
   );
 }

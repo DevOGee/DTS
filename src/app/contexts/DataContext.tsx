@@ -23,8 +23,10 @@ import {
 } from '../data/mockData';
 import { mockChecklistItems, ChecklistItem } from '../data/checklistData';
 import { mockVideoLogs, mockGroupVideoStats, VideoLog, GroupVideoStats } from '../data/multimediaData';
+import { useRecycleBin } from './RecycleBinContext';
 
 const STORAGE_KEY = 'dts_app_state';
+const DATA_VERSION = '2.0'; // Increment to force cache refresh
 
 export interface DataContextType {
   users: User[];
@@ -48,11 +50,13 @@ export interface DataContextType {
   setCourses: (courses: Course[]) => void;
   addCourse: (course: Course) => void;
   updateCourse: (course: Course) => void;
-  removeCourse: (courseId: string) => void;
+  removeCourse: (courseId: string, deletedBy?: string) => void;
+  restoreCourse: (course: Course) => void;
   setParticipants: (participants: Participant[]) => void;
   addParticipant: (participant: Participant) => void;
   updateParticipant: (participant: Participant) => void;
-  removeParticipant: (participantId: string) => void;
+  removeParticipant: (participantId: string, deletedBy?: string) => void;
+  restoreParticipant: (participant: Participant) => void;
   setAttendance: (attendance: Attendance[]) => void;
   toggleAttendance: (participantId: string, day: number) => void;
   markAttendanceDayPresent: (day: number, group: Group | 'all') => void;
@@ -107,11 +111,20 @@ const loadInitialState = () => {
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   const saved = JSON.parse(raw);
+  
+  // Check if cached data version matches current version
+  if (saved.version !== DATA_VERSION) {
+    console.log('Data version changed, clearing cache');
+    window.localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
+  
   return normalizeSavedState(saved);
 };
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const initialState = loadInitialState();
+  const { addToRecycleBin } = useRecycleBin();
 
   const [users, setUsers] = useState<User[]>(initialState?.users ?? mockUsers);
   const [workshop, setWorkshop] = useState<Workshop>(initialState?.workshop ?? mockWorkshop);
@@ -130,6 +143,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const payload = {
+      version: DATA_VERSION,
       users,
       workshop,
       programmes,
@@ -148,16 +162,61 @@ export function DataProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [users, workshop, programmes, courses, participants, attendance, paymentSchedules, checklistItems, groupColors, permissions, baseDailyRate, dsaRates, videoLogs, groupVideoStats]);
 
+  const restoreCourse = (course: Course) => {
+    setCourses((prev) => [...prev, course]);
+  };
+
+  const restoreParticipant = (participant: Participant) => {
+    setParticipants((prev) => [...prev, participant]);
+  };
+
+  // Listen for restore events from recycle bin
+  useEffect(() => {
+    const handleRestore = (event: CustomEvent) => {
+      const item = event.detail;
+      if (item.type === 'course') {
+        restoreCourse(item.data);
+      } else if (item.type === 'participant') {
+        restoreParticipant(item.data);
+      }
+    };
+
+    window.addEventListener('restoreFromRecycleBin', handleRestore as EventListener);
+    return () => window.removeEventListener('restoreFromRecycleBin', handleRestore as EventListener);
+  }, [restoreCourse, restoreParticipant]);
+
   const addUser = (user: User) => setUsers((prev) => [...prev, user]);
   const updateUser = (user: User) => setUsers((prev) => prev.map((item) => (item.id === user.id ? user : item)));
 
   const addCourse = (course: Course) => setCourses((prev) => [...prev, course]);
   const updateCourse = (course: Course) => setCourses((prev) => prev.map((item) => (item.id === course.id ? course : item)));
-  const removeCourse = (courseId: string) => setCourses((prev) => prev.filter((course) => course.id !== courseId));
+  const removeCourse = (courseId: string, deletedBy?: string) => {
+    const courseToRemove = courses.find(course => course.id === courseId);
+    if (courseToRemove) {
+      addToRecycleBin({
+        type: 'course',
+        originalId: courseId,
+        data: courseToRemove,
+        deletedBy: deletedBy || 'Unknown',
+        moduleName: 'Course Management',
+      });
+    }
+    setCourses((prev) => prev.filter((course) => course.id !== courseId));
+  };
 
   const addParticipant = (participant: Participant) => setParticipants((prev) => [...prev, participant]);
   const updateParticipant = (participant: Participant) => setParticipants((prev) => prev.map((item) => (item.id === participant.id ? participant : item)));
-  const removeParticipant = (participantId: string) => {
+  const removeParticipant = (participantId: string, deletedBy?: string) => {
+    const participantToRemove = participants.find(participant => participant.id === participantId);
+    if (participantToRemove) {
+      addToRecycleBin({
+        type: 'participant',
+        originalId: participantId,
+        data: participantToRemove,
+        deletedBy: deletedBy || 'Unknown',
+        moduleName: 'Participant Management',
+      });
+    }
     setParticipants((prev) => prev.filter((item) => item.id !== participantId));
     setAttendance((prev) => prev.filter((record) => record.participantId !== participantId));
     setPaymentSchedules((prev) => prev.filter((schedule) => schedule.participantId !== participantId));
@@ -258,10 +317,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addCourse,
       updateCourse,
       removeCourse,
+      restoreCourse,
       setParticipants,
       addParticipant,
       updateParticipant,
       removeParticipant,
+      restoreParticipant,
       setAttendance,
       toggleAttendance,
       markAttendanceDayPresent,
