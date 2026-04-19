@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, BookOpen, Users, Settings, LogOut, Menu, X,
   Calendar, User, UserCheck, DollarSign, Video, CheckSquare, FileText, Layers,
-  ChevronLeft,
+  ChevronLeft, Send,
 } from 'lucide-react';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -19,6 +19,7 @@ const NAV = [
   { path: '/checklist',    label: 'Checklist',    icon: CheckSquare },
   { path: '/reports',      label: 'Reports',      icon: FileText },
   { path: '/workshops',    label: 'Workshops',    icon: Calendar },
+  { path: '/requests',     label: 'Requests',     icon: Send },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {

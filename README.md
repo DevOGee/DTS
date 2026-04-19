@@ -328,6 +328,35 @@ The system implements a four-tier role-based access control system:
   - Automated absence notifications
   - Export to multiple formats (CSV, PDF, Excel)
 
+### Request Management
+- **Conference Facility Requests**: 
+  - Request conference facilities and meals for digitisation workshops
+  - Automated reference generation (e.g., OUK/ICT/REQ/187)
+  - Participant count and duration tracking
+  - Facility requirements specification
+- **Digitisation Approval Requests**:
+  - Content digitisation approval for semester courses
+  - Cost estimation and budget approval workflows
+  - Team composition and role assignments
+  - Timeline and milestone planning
+- **Course Listing Management**:
+  - Complete list of courses to be digitised
+  - Course code, title, and programme mapping
+  - Bulk course import via CSV
+  - Programme-based course categorisation
+- **Financial Costing**:
+  - Detailed DSA rate calculations by role
+  - External vs internal staff cost breakdown
+  - Conference facility costing
+  - Grand total computation with sub-totals
+  - Export to multiple formats (CSV, PDF, Excel)
+- **Features**:
+  - Request status tracking (Pending, Approved, Rejected)
+  - Automated approval workflows
+  - PDF generation for official requests
+  - Search and filter capabilities
+  - Request history and audit trail
+
 ### Financial Management
 - **Payment Schedules**: DSA payment tracking
 - **Rate Management**: Configurable DSA rates

@@ -15,6 +15,7 @@ import { MultimediaTracker } from './components/MultimediaTracker';
 import { PhaseChecklist } from './components/PhaseChecklist';
 import { Reports } from './components/Reports';
 import { AdminSettings } from './components/AdminSettings';
+import RequestManagement from './components/RequestManagement';
 
 /** Routes that require authentication */
 function ProtectedRoutes() {
@@ -39,6 +40,7 @@ function ProtectedRoutes() {
         <Route path="/checklist" element={<PhaseChecklist />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/workshops" element={<Workshops />} />
+        <Route path="/requests" element={<RequestManagement />} />
         <Route path="/settings" element={<AdminSettings />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
