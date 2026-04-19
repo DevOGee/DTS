@@ -59,18 +59,46 @@ const RequestManagement = () => {
     }
   ];
 
-  const courses = [
-    { code: 'ECO 403', title: 'Applied Econometrics', programme: 'BE01' },
-    { code: 'ECO 405', title: 'Behavioural and Institutional Economics', programme: 'BE01' },
-    { code: 'ECO 400', title: 'Research Project', programme: 'BE01' },
-    { code: 'ECO 401', title: 'Environmental and Natural Resource Economics', programme: 'BE01' },
-    { code: 'SST 401', title: 'Time Series Analysis', programme: 'BE01' },
-    { code: 'BEB 401', title: 'Operations Research', programme: 'BE02' },
-    { code: 'BEB 403', title: 'Design Thinking', programme: 'BE02' },
-    { code: 'BEB 405', title: 'Taxation', programme: 'BE02' },
-    { code: 'BEB 407', title: 'Strategic Management', programme: 'BE02' },
-    { code: 'BEB 409', title: 'Global Business Management', programme: 'BE02' }
+  // Updated programmes structure with correct schools
+  const programmes = [
+    // School of Science and Technology - 10 Programmes
+    { school: 'School of Science and Technology', code: 'BSC-IMT', title: 'Bachelor of Science in Interactive Media Technologies', level: 'Undergraduate' },
+    { school: 'School of Science and Technology', code: 'BSC-MC', title: 'Bachelor of Mathematics and Computing', level: 'Undergraduate' },
+    { school: 'School of Science and Technology', code: 'MSC-DSM', title: 'Master of Science in Digital Services Management', level: 'Postgraduate' },
+    { school: 'School of Science and Technology', code: 'MSC-AI', title: 'Master of Science in Artificial Intelligence', level: 'Postgraduate' },
+    { school: 'School of Science and Technology', code: 'BSC-ATFS', title: 'Bachelor of Agri-Technology and Food Systems', level: 'Undergraduate' },
+    { school: 'School of Science and Technology', code: 'MSC-CDF', title: 'Master of Science in Cybersecurity and Digital Forensics', level: 'Postgraduate' },
+    { school: 'School of Science and Technology', code: 'BSC-CDF', title: 'Bachelor of Science in Cybersecurity and Digital Forensics', level: 'Undergraduate' },
+    { school: 'School of Science and Technology', code: 'BSC-DS', title: 'Bachelor of Data Science', level: 'Undergraduate' },
+    { school: 'School of Science and Technology', code: 'BSC-CS', title: 'Bachelor of Science in Computer Science', level: 'Undergraduate' },
+    { school: 'School of Science and Technology', code: 'MSC-DS', title: 'Master of Data Science', level: 'Postgraduate' },
+    
+    // School of Education - 7 Programmes
+    { school: 'School of Education', code: 'PGDE', title: 'Postgraduate Diploma in Education', level: 'Postgraduate' },
+    { school: 'School of Education', code: 'MLDT', title: 'Master in Learning Design and Technology (MLDT)', level: 'Postgraduate' },
+    { school: 'School of Education', code: 'PHD-ELP', title: 'Doctor of Philosophy in Educational Leadership and Policy', level: 'Doctorate' },
+    { school: 'School of Education', code: 'MTE', title: 'Masters of Technology Education', level: 'Postgraduate' },
+    { school: 'School of Education', code: 'MED-ELP', title: 'Master of Education in Educational Leadership and Policy', level: 'Postgraduate' },
+    { school: 'School of Education', code: 'PGDT', title: 'Postgraduate Diploma in Learning Design and Technology', level: 'Postgraduate' },
+    { school: 'School of Education', code: 'BTE', title: 'Bachelor of Technology Education', level: 'Undergraduate' },
+    
+    // School of Business and Economics - 7 Programmes
+    { school: 'School of Business and Economics', code: 'PHD-BM', title: 'Doctor of Philosophy in Business Management', level: 'Doctorate' },
+    { school: 'School of Business and Economics', code: 'MBA', title: 'Master of Business Administration', level: 'Postgraduate' },
+    { school: 'School of Business and Economics', code: 'PGDLA', title: 'Postgraduate Diploma in Leadership and Accountability', level: 'Postgraduate' },
+    { school: 'School of Business and Economics', code: 'BBE', title: 'Bachelor of Business and Entrepreneurship', level: 'Undergraduate' },
+    { school: 'School of Business and Economics', code: 'BES', title: 'Bachelor of Economics and Statistics', level: 'Undergraduate' },
+    { school: 'School of Business and Economics', code: 'BEDS', title: 'Bachelor of Economics and Data Science', level: 'Undergraduate' },
+    { school: 'School of Business and Economics', code: 'BCOM', title: 'Bachelor of Commerce', level: 'Undergraduate' }
   ];
+
+  // Sample courses for display (showing first 10)
+  const courses = programmes.slice(0, 10).map((prog, index) => ({
+    code: prog.code,
+    title: prog.title,
+    programme: prog.school,
+    level: prog.level
+  }));
 
   const financialData = [
     { name: 'Alfred Muriu', role: 'Technical Digitizer', rate: 8300, days: 14, dsa: 116200 },
@@ -342,8 +370,8 @@ const RequestManagement = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Total Courses:</span>
-                    <Badge variant="secondary">78</Badge>
+                    <span className="text-sm text-muted-foreground">Total Programmes:</span>
+                    <Badge variant="secondary">{programmes.length}</Badge>
                   </div>
                   <Button variant="outline" className="flex items-center gap-2">
                     <Download className="w-4 h-4" />
@@ -356,9 +384,10 @@ const RequestManagement = () => {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left p-2">#</th>
-                        <th className="text-left p-2">Course Code</th>
-                        <th className="text-left p-2">Course Title</th>
-                        <th className="text-left p-2">Programme</th>
+                        <th className="text-left p-2">Programme Code</th>
+                        <th className="text-left p-2">Programme Title</th>
+                        <th className="text-left p-2">School</th>
+                        <th className="text-left p-2">Level</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -368,7 +397,15 @@ const RequestManagement = () => {
                           <td className="p-2 font-mono">{course.code}</td>
                           <td className="p-2">{course.title}</td>
                           <td className="p-2">
-                            <Badge variant="outline">{course.programme}</Badge>
+                            <Badge variant="outline" className="text-xs">{course.programme}</Badge>
+                          </td>
+                          <td className="p-2">
+                            <Badge 
+                              variant={course.level === 'Undergraduate' ? 'default' : course.level === 'Postgraduate' ? 'secondary' : 'destructive'}
+                              className="text-xs"
+                            >
+                              {course.level}
+                            </Badge>
                           </td>
                         </tr>
                       ))}
@@ -377,7 +414,7 @@ const RequestManagement = () => {
                 </div>
 
                 <div className="text-sm text-muted-foreground">
-                  Showing 10 of 78 courses. Export to view complete list.
+                  Showing 10 of {programmes.length} programmes. Export to view complete list.
                 </div>
               </div>
             </CardContent>
