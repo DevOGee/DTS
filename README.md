@@ -1,4 +1,4 @@
-# X Digitisation Tracking System (v4)
+# X Digitisation Tracking System
 
 [![React](https://img.shields.io/badge/React-18.3.1-blue?logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4.0-blue?logo=typescript)](https://www.typescriptlang.org/)
@@ -6,7 +6,6 @@
 [![Tailwind](https://img.shields.io/badge/Tailwind-4.1.12-38B2AC?logo=tailwindcss)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-![Institution Logo](https://example.com/logo.png)
 
 A comprehensive web application for tracking, managing, and optimising academic content digitisation at Institution X. Built with React, TypeScript, and PostgreSQL, the system handles complex academic hierarchies, real-time progress tracking, and detailed financial/attendance management.
 
