@@ -285,8 +285,8 @@ The system implements a four-tier role-based access control system:
 ### Dashboard Module
 - **Purpose**: Central overview of system status
 - **Key Metrics**: 
-  - Total participants (X: Y Internal + Z External)
-  - Course count (X courses, Y modules)
+  - Total participants (XXX: XXX Internal + XXX External)
+  - Course count (XXX courses, XXX modules)
   - Overall completion percentage
   - Daily progress targets
 - **Features**: Real-time updates, progress visualisations, quick navigation
@@ -295,11 +295,11 @@ The system implements a four-tier role-based access control system:
 - **Workshop Configuration**:
   - Start Date: Default configurable start date
   - Number of Days: Auto-calculates End Date
-  - Venue: Institution Y Main Campus
+  - Venue: Institution XXX Main Campus
 - **User Management**: Add, edit, delete system users
 - **DSA Rate Configuration**: 
-  - In-County: X% of base rate
-  - Out-County: Y% of base rate
+  - In-County: XXX% of base rate
+  - Out-County: XXX% of base rate
 - **Group Colour Configuration**: Custom colours for Groups A-F
 - **Data Management**: Export/reset functionality
 
@@ -331,7 +331,7 @@ The system implements a four-tier role-based access control system:
 ### Request Management
 - **Conference Facility Requests**: 
   - Request conference facilities and meals for digitisation workshops
-  - Automated reference generation (e.g., OUK/ICT/REQ/187)
+  - Automated reference generation (e.g., XXX/ICT/REQ/187)
   - Participant count and duration tracking
   - Facility requirements specification
 - **Digitisation Approval Requests**:
@@ -429,14 +429,14 @@ Each module provides downloadable CSV templates:
 - **Database Schema**: Complete data structure reference
 
 #### Support Channels
-- **Email Support**: digitisation-support@x.edu
+- **Email Support**: digitisation-support@xxx.edu
 - **Phone Support**: +XXX-XXX-XXXXXXX
 - **Office Hours**: Monday-Friday, 8:00 AM - 5:00 PM
 
 #### System Maintenance
 - **Backup Schedule**: Daily automated backups at 2:00 AM
 - **Update Window**: Sundays 6:00 AM - 8:00 AM
-- **Emergency Contact**: system-admin@x.edu
+- **Emergency Contact**: system-admin@xxx.edu
 
 ### Best Practices
 
@@ -473,6 +473,6 @@ Each module provides downloadable CSV templates:
 
 ---
 
-**© 2026 Institution X. Digital Transformation Initiative.**
+**© 2026 Institution XXX. Digital Transformation Initiative.**
 
-For technical support or system inquiries, please contact the IT Support Team at digitisation-support@institutionX.edu
+For technical support or system inquiries, please contact the IT Support Team at digitisation-support@xxx.edu
