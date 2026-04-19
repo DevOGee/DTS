@@ -310,10 +310,23 @@ The system implements a four-tier role-based access control system:
 - **Group Assignment**: Automatic group-based workload distribution
 
 ### Attendance System
-- **Daily Tracking**: Per-participant daily attendance
-- **DSA Calculations**: Automatic rate calculations based on attendance
+- **Daily Tracking**: Per-participant daily attendance with QR code check-in
+- **QR Code Integration**: 
+  - Generate unique QR codes for each participant
+  - Mobile-friendly QR scanning for quick attendance
+  - Automatic timestamp recording on scan
+- **Unique Links**: 
+  - Generate secure attendance links per session
+  - Email/SMS integration for remote attendance
+  - Expiring links with configurable time windows
+- **DSA Calculations**: Automatic rate calculations based on verified attendance
 - **Bulk Operations**: CSV upload/download for attendance data
 - **Reporting**: Attendance summaries and analytics
+- **Features**:
+  - Real-time attendance dashboard
+  - Attendance heat maps and patterns
+  - Automated absence notifications
+  - Export to multiple formats (CSV, PDF, Excel)
 
 ### Financial Management
 - **Payment Schedules**: DSA payment tracking
