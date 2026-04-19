@@ -120,7 +120,7 @@ flowchart LR
 
 ## System Overview
 
-The OUK Digitisation Tracking System is designed to manage the complete digitisation workflow across multiple academic programmes, groups, and participants. The system provides real-time visibility into digitisation progress, attendance tracking, and financial management.
+The X Digitisation Tracking System is designed to manage the complete digitisation workflow across multiple academic programmes, groups, and participants. The system provides real-time visibility into digitisation progress, attendance tracking, and financial management.
 
 ### Key Architecture Components
 
@@ -178,7 +178,7 @@ The OUK Digitisation Tracking System is designed to manage the complete digitisa
 3. **Database Setup**
    ```sql
    -- Create PostgreSQL database
-   CREATE DATABASE ouk_digitisation_system;
+   CREATE DATABASE x_digitisation_system;
    
    -- Run migration scripts
    \i database/migrations/001_initial_schema.sql
@@ -211,10 +211,10 @@ The OUK Digitisation Tracking System is designed to manage the complete digitisa
 
 ```env
 # Database Configuration
-DATABASE_URL=postgresql://username:password@localhost:5173/ouk_digitisation_system
+DATABASE_URL=postgresql://username:password@localhost:5173/x_digitisation_system
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=ouk_digitisation_system
+DB_NAME=x_digitisation_system
 DB_USER=your_username
 DB_PASSWORD=your_password
 
@@ -388,14 +388,14 @@ Each module provides downloadable CSV templates:
 - **Database Schema**: Complete data structure reference
 
 #### Support Channels
-- **Email Support**: digitisation-support@ouk.ac.ke
-- **Phone Support**: +254-XXX-XXXXXXX
+- **Email Support**: digitisation-support@x.edu
+- **Phone Support**: +XXX-XXX-XXXXXXX
 - **Office Hours**: Monday-Friday, 8:00 AM - 5:00 PM
 
 #### System Maintenance
 - **Backup Schedule**: Daily automated backups at 2:00 AM
 - **Update Window**: Sundays 6:00 AM - 8:00 AM
-- **Emergency Contact**: system-admin@ouk.ac.ke
+- **Emergency Contact**: system-admin@x.edu
 
 ### Best Practices
 
