@@ -12,10 +12,223 @@
 @keyframes fade-in   { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes slide-in  { from { transform: translateX(-100%); }           to { transform: none; } }
 @keyframes scale-in  { from { opacity: 0; transform: scale(.95); }      to { opacity: 1; transform: none; } }
+@keyframes rotate-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes teal-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(3, 123, 144, 0.12), 0 0 24px rgba(3, 123, 144, 0.28); }
+  50% { box-shadow: 0 0 0 1px rgba(3, 123, 144, 0.18), 0 0 32px rgba(3, 123, 144, 0.4); }
+}
 
 .animate-fade-in  { animation: fade-in  .25s ease both; }
 .animate-slide-in { animation: slide-in .25s ease both; }
 .animate-scale-in { animation: scale-in .2s  ease both; }
+
+/* ── Dashboard progress ring ───────────────── */
+.progress-center-orbit {
+  --progress-angle: 0deg;
+  position: relative;
+  width: 10.75rem;
+  height: 10.75rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, var(--card) 0 63%, transparent 64%),
+    conic-gradient(
+      from var(--progress-angle),
+      rgba(3, 123, 144, 0.14) 0deg,
+      rgba(13, 148, 136, 0.95) 65deg,
+      rgba(6, 182, 212, 0.5) 130deg,
+      rgba(3, 123, 144, 0.1) 360deg
+    );
+  animation: rotate-orbit 9s linear infinite, teal-glow 2.4s ease-in-out infinite;
+}
+
+.progress-center-orbit::before {
+  content: '';
+  position: absolute;
+  inset: 0.6rem;
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.progress-center-orbit > div {
+  position: relative;
+  z-index: 1;
+}
+
+.progress-percentage-text {
+  color: var(--primary);
+  text-shadow: 0 0 18px rgba(3, 123, 144, 0.35);
+}
+
+/* ── Dashboard modern polish ──────────────── */
+.dashboard-glass {
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.dashboard-section-title {
+  letter-spacing: -0.02em;
+}
+
+.dashboard-top-nav {
+  border: 1px solid #e8eef0;
+  border-top: 2px solid #037b90;
+  box-shadow: 0 6px 20px -16px rgba(2, 6, 23, 0.22);
+}
+
+.pro-logout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 122px;
+  height: 42px;
+  padding: 0 1rem;
+  border-radius: 4px;
+  border: 2px solid #037b90;
+  background: #ff7f50;
+  color: #ffffff;
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 0 rgba(2, 95, 111, 0.55), 0 6px 14px -8px rgba(255, 127, 80, 0.7);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.pro-logout-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 rgba(2, 95, 111, 0.6), 0 10px 20px -10px rgba(255, 127, 80, 0.8);
+  filter: saturate(1.06);
+}
+
+.pro-logout-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 rgba(2, 95, 111, 0.65), 0 4px 10px -10px rgba(255, 127, 80, 0.65);
+}
+
+.moodle-profile-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid #d9e6ea;
+  border-top: 2px solid #037b90;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem 0.35rem 0.4rem;
+  box-shadow: 0 6px 16px -14px rgba(2, 6, 23, 0.4);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.moodle-profile-trigger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px -16px rgba(3, 123, 144, 0.4);
+}
+
+.moodle-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #037b90, #0ea5a0);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.moodle-profile-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.6rem);
+  min-width: 290px;
+  width: 290px;
+  background: #ffffff;
+  border: 1px solid #d8e6ea;
+  border-radius: 0.9rem;
+  box-shadow: 0 20px 42px -24px rgba(2, 6, 23, 0.5), 0 8px 20px -16px rgba(3, 123, 144, 0.25);
+  overflow: hidden;
+  z-index: 70;
+}
+
+.moodle-profile-head {
+  padding: 0.95rem;
+  background: linear-gradient(180deg, #f8fbfc 0%, #ffffff 100%);
+  border-bottom: 1px solid #e6eff2;
+}
+
+.moodle-profile-user {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+.moodle-avatar-lg {
+  width: 2.45rem;
+  height: 2.45rem;
+  font-size: 0.96rem;
+  box-shadow: 0 0 0 2px #e8f2f4;
+}
+
+.moodle-greeting {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.moodle-profile-role {
+  font-size: 0.77rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.moodle-profile-links {
+  padding: 0.45rem 0.5rem 0.55rem;
+}
+
+.moodle-profile-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.72rem 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: #0f172a;
+  text-align: left;
+  border-radius: 0.62rem;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.moodle-profile-icon {
+  color: #037b90;
+  opacity: 0.88;
+}
+
+.moodle-profile-item:hover {
+  background: #eef8fa;
+  color: #035969;
+}
+
+.moodle-profile-item-danger {
+  color: #dc2626;
+}
+
+.moodle-profile-item-danger .moodle-profile-icon {
+  color: #dc2626;
+}
+
+.moodle-profile-item-danger:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
 
 /* ── Page transitions ─────────────────────── */
 .page-enter { animation: fade-in .3s ease both; }
@@ -33,6 +246,7 @@
 /* ── Mobile overlay ───────────────────────── */
 .sidebar-overlay { 
   position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px); z-index: 40;
   animation: fade-in .2s ease both;
 }
@@ -79,7 +293,7 @@
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 50;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,.5); backdrop-filter: blur(4px);
+  background: rgba(0,0,0,.5); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
   padding: 1rem;
   animation: fade-in .2s ease both;
 }

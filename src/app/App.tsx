@@ -1,26 +1,31 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import { RecycleBinProvider } from './contexts/RecycleBinContext';
+import { DYNAMIC_ROUTES } from './routes/routeConfig';
+import { ProtectedRoute, RouteGuard } from './components/ProtectedRoute';
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
-import { Dashboard } from './components/Dashboard';
-import { Courses } from './components/Courses';
-import { Groups } from './components/Groups';
-import { Workshops } from './components/Workshops';
-import { Participants } from './components/Participants';
-import { Attendance } from './components/Attendance';
-import { Payments } from './components/Payments';
-import { MultimediaTracker } from './components/MultimediaTracker';
-import { PhaseChecklist } from './components/PhaseChecklist';
-import { Reports } from './components/Reports';
-import { AdminSettings } from './components/AdminSettings';
-import { RecycleBin } from './components/RecycleBin';
-import RequestManagement from './components/RequestManagement';
-import { Feedback } from './components/Feedback';
 
-/** Routes that require authentication */
+// Create a client for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (renamed from cacheTime)
+      retry: 3,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
+
+/** Dynamic routes with role-based access control */
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
@@ -32,21 +37,19 @@ function ProtectedRoutes() {
   return (
     <Layout>
       <Routes>
+        {/* Default redirect to dashboard */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/courses" element={<Courses />} />
-        <Route path="/groups" element={<Groups />} />
-        <Route path="/participants" element={<Participants />} />
-        <Route path="/multimedia" element={<MultimediaTracker />} />
-        <Route path="/attendance" element={<Attendance />} />
-        <Route path="/payments" element={<Payments />} />
-        <Route path="/checklist" element={<PhaseChecklist />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/workshops" element={<Workshops />} />
-        <Route path="/requests" element={<RequestManagement />} />
-        <Route path="/recycle-bin" element={<RecycleBin />} />
-        <Route path="/feedback" element={<Feedback />} />
-        <Route path="/settings" element={<AdminSettings />} />
+        
+        {/* Dynamic routes from configuration */}
+        {DYNAMIC_ROUTES.map((route) => (
+          <Route
+            key={route.path}
+            path={route.path}
+            element={<RouteGuard routeConfig={route} />}
+          />
+        ))}
+        
+        {/* Fallback route */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Layout>
@@ -76,12 +79,15 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <RecycleBinProvider>
-      <DataProvider>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </DataProvider>
-    </RecycleBinProvider>
+    <QueryClientProvider client={queryClient}>
+      <RecycleBinProvider>
+        <DataProvider>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </DataProvider>
+      </RecycleBinProvider>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   );
 }

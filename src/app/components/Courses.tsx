@@ -1,8 +1,11 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router';
 import { Search, Edit, Trash2, Plus, ExternalLink, X, Save, BookOpen, Target, TrendingUp, CheckCircle2, Upload, Download, FileText, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { GROUPS, Group, mockProgrammes, Course } from '../data/mockData';
+import { PaginationControls } from './ui/PaginationControls';
+import { usePagination } from '../hooks/usePagination';
 
 const EMPTY: Omit<Course, 'id'> = {
   code: '', name: '', programmeId: mockProgrammes[0]?.id ?? '', level: '',
@@ -13,16 +16,25 @@ const EMPTY: Omit<Course, 'id'> = {
 export function Courses() {
   const { user } = useAuth();
   const { courses, addCourse, updateCourse, removeCourse } = useData();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams();
+  
   const [search, setSearch] = useState('');
   const [filterGroup, setFilterGroup] = useState<Group | 'all'>('all');
   const [filterLevel, setFilterLevel] = useState('all');
   const [filterType, setFilterType] = useState<'all' | 'Technical' | 'Non-Technical'>('all');
-  const [modal, setModal] = useState<{ mode: 'add' | 'edit'; data: Course | null } | null>(null);
   const [form, setForm] = useState<Omit<Course, 'id'>>(EMPTY);
   const [toast, setToast] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // URL-based state management
+  const locationPath = location.pathname;
+  const isAddMode = locationPath === '/courses/add-course';
+  const isEditMode = locationPath.startsWith('/courses/edit/') && locationPath.split('/')[3];
+  const isViewMode = !isAddMode && !isEditMode;
 
   const canEdit = user?.role !== 'Viewer/Digitiser';
   const canDelete = user?.role === 'System Admin';
@@ -38,6 +50,12 @@ export function Courses() {
   }), [courses, search, filterGroup, filterLevel, filterType]);
 
   const totalModules = courses.reduce((s, c) => s + c.totalModules, 0);
+  const pagination = usePagination(filtered.length, 10);
+  const paginatedCourses = useMemo(
+    () => filtered.slice(pagination.offset, pagination.offset + pagination.limit),
+    [filtered, pagination.offset, pagination.limit]
+  );
+
   const completedModules = courses.reduce((s, c) => s + c.completedModules, 0);
   const completionPct = totalModules ? Math.round(completedModules / totalModules * 100) : 0;
   const techCount = courses.filter(c => c.courseType === 'Technical').length;
@@ -45,9 +63,23 @@ export function Courses() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
-  const openAdd = () => { setForm(EMPTY); setModal({ mode: 'add', data: null }); };
-  const openEdit = (c: Course) => { setForm({ ...c }); setModal({ mode: 'edit', data: c }); };
-  const closeModal = () => setModal(null);
+  // URL-based navigation functions
+  const openAdd = () => navigate('/courses/add-course');
+  const openEdit = (c: Course) => navigate(`/courses/edit/${c.id}`);
+  const closeForm = () => navigate('/courses');
+
+  // Initialize form based on URL mode
+  useEffect(() => {
+    if (isAddMode) {
+      setForm(EMPTY);
+    } else if (isEditMode) {
+      const courseId = locationPath.split('/')[3];
+      const course = courses.find(c => c.id === courseId);
+      if (course) {
+        setForm({ ...course });
+      }
+    }
+  }, [locationPath, courses, isAddMode, isEditMode]);
 
   // CSV Export Function
   const exportToCSV = () => {
@@ -215,14 +247,15 @@ export function Courses() {
 
   const handleSave = () => {
     if (!form.code.trim() || !form.name.trim()) { showToast('Course code and name are required.'); return; }
-    if (modal?.mode === 'add') {
+    if (isAddMode) {
       addCourse({ ...form, id: `c-${Date.now()}` });
       showToast('Course added successfully.');
-    } else if (modal?.data) {
-      updateCourse({ ...form, id: modal.data.id });
+    } else if (isEditMode) {
+      const courseId = locationPath.split('/')[3];
+      updateCourse({ ...form, id: courseId });
       showToast('Course updated successfully.');
     }
-    closeModal();
+    closeForm();
   };
 
   const handleDelete = (c: Course) => {
@@ -360,7 +393,7 @@ export function Courses() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(course => {
+              {paginatedCourses.map(course => {
                 const prog = mockProgrammes.find(p => p.id === course.programmeId);
                 const pct = Math.round(course.completedModules / course.totalModules * 100);
                 return (
@@ -400,26 +433,34 @@ export function Courses() {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
+              {paginatedCourses.length === 0 && (
                 <tr><td colSpan={8} className="py-12 text-center text-muted-foreground">No courses match your filters.</td></tr>
               )}
             </tbody>
           </table>
         </div>
-
-        <div className="px-5 py-3 border-t border-border flex justify-between text-xs text-muted-foreground">
-          <span>Showing {filtered.length} of {courses.length} courses</span>
-          <span>{completedModules} modules complete</span>
-        </div>
+        <PaginationControls
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize}
+          pageSizeOptions={pagination.pageSizeOptions}
+          from={pagination.from}
+          to={pagination.to}
+          totalItems={filtered.length}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
 
-      {/* Modal */}
-      {modal && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal-box max-w-xl">
+      {/* Add/Edit Form - URL-based */}
+      {(isAddMode || isEditMode) && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={e => e.target === e.currentTarget && closeForm()}>
+          <div className="bg-card rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="text-xl font-semibold">{modal.mode === 'add' ? 'Add Course' : 'Edit Course'}</h2>
-              <button onClick={closeModal} className="btn-icon p-2"><X className="w-5 h-5" /></button>
+              <h2 className="text-xl font-semibold">{isAddMode ? 'Add Course' : 'Edit Course'}</h2>
+              <button onClick={closeForm} className="btn-icon p-2 hover:bg-muted rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -471,10 +512,10 @@ export function Courses() {
               </div>
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-border">
-              <button onClick={closeModal} className="btn btn-muted">Cancel</button>
+              <button onClick={closeForm} className="btn btn-muted">Cancel</button>
               <button onClick={handleSave} className="btn btn-primary">
                 <Save className="w-4 h-4" />
-                {modal.mode === 'add' ? 'Add Course' : 'Update Course'}
+                {isAddMode ? 'Add Course' : 'Update Course'}
               </button>
             </div>
           </div>

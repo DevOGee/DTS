@@ -1,59 +1,107 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router';
 import { Users, TrendingUp, BookOpen, Edit, Save, X, Plus, Trash2 } from 'lucide-react';
-import { GROUPS, Group } from '../data/mockData';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { PaginationControls } from './ui/PaginationControls';
+import { usePagination } from '../hooks/usePagination';
 
 export function Groups() {
   const { user } = useAuth();
-  const { courses, participants, groupColors } = useData();
-  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const { groups, courses, participants, groupColors, addGroup, removeGroup, renameGroup } = useData();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [newGroupName, setNewGroupName] = useState('');
-  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [toast, setToast] = useState('');
 
-  const isAdmin = user?.role === 'System Admin';
-  const canEditGroups = isAdmin;
+  // URL-based state management
+  const locationPath = location.pathname;
+  const isAddMode = locationPath === '/groups/add-group';
+  const editMatch = locationPath.match(/^\/groups\/edit-group-(.+)$/);
+  const isEditMode = !!editMatch;
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
-
-  const handleEditGroup = (group: Group) => {
-    setEditingGroup(group);
-    setNewGroupName(group);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
   };
 
-  const handleSaveGroup = () => {
-    if (!newGroupName.trim()) {
+  useEffect(() => {
+    if (editMatch?.[1]) {
+      const urlGroup = decodeURIComponent(editMatch[1]).toUpperCase();
+      if (groups.includes(urlGroup)) {
+        setEditingGroup(urlGroup);
+        setNewGroupName(urlGroup);
+      }
+    }
+  }, [editMatch, groups]);
+
+  const openAddGroup = () => {
+    setNewGroupName('');
+    navigate('/groups/add-group');
+  };
+
+  const openEditGroup = (group: string) => {
+    setEditingGroup(group);
+    setNewGroupName(group);
+    navigate(`/groups/edit-group-${encodeURIComponent(group.toLowerCase())}`);
+  };
+
+  const closeForm = () => {
+    setEditingGroup(null);
+    setNewGroupName('');
+    navigate('/groups');
+  };
+
+  const handleAddGroup = () => {
+    const trimmed = newGroupName.trim().toUpperCase();
+    if (!trimmed) {
       showToast('Group name cannot be empty');
       return;
     }
-    // Note: In a real implementation, this would update the GROUPS array
-    // For now, we'll just show a success message
-    showToast(`Group "${editingGroup}" updated to "${newGroupName}"`);
-    setEditingGroup(null);
-    setNewGroupName('');
+    if (groups.includes(trimmed)) {
+      showToast(`Group "${trimmed}" already exists`);
+      return;
+    }
+    addGroup(trimmed);
+    showToast(`Group "${trimmed}" added successfully`);
+    closeForm();
   };
 
-  const handleDeleteGroup = (group: Group) => {
-    if (confirm(`Are you sure you want to delete Group ${group}? This will also remove all associated courses and participants.`)) {
-      // Note: In a real implementation, this would remove the group and update all associated records
+  const handleSaveGroup = () => {
+    const trimmed = newGroupName.trim().toUpperCase();
+    if (!trimmed) {
+      showToast('Group name cannot be empty');
+      return;
+    }
+    if (editingGroup && trimmed !== editingGroup && groups.includes(trimmed)) {
+      showToast(`Group "${trimmed}" already exists`);
+      return;
+    }
+    if (editingGroup) {
+      renameGroup(editingGroup, trimmed);
+      showToast(`Group "${editingGroup}" renamed to "${trimmed}"`);
+    }
+    closeForm();
+  };
+
+  const handleDeleteGroup = (group: string) => {
+    const participantCount = participants.filter(p => p.group === group).length;
+    const courseCount = courses.filter(c => c.assignedGroup === group).length;
+    const message =
+      `Delete Group ${group}? This will also remove ${courseCount} course(s) and ${participantCount} participant(s) assigned to it.`;
+    if (confirm(message)) {
+      removeGroup(group);
       showToast(`Group ${group} deleted successfully`);
     }
   };
 
-  const handleAddGroup = () => {
-    if (!newGroupName.trim()) {
-      showToast('Group name cannot be empty');
-      return;
-    }
-    // Note: In a real implementation, this would add to the GROUPS array
-    showToast(`Group "${newGroupName}" added successfully`);
-    setNewGroupName('');
-    setShowAddGroup(false);
-  };
+  const isAdmin = user?.role === 'System Admin';
+  const canEditGroups = isAdmin;
 
   const groupData = useMemo(() =>
-    GROUPS.map(group => {
+    groups.map(group => {
       const gc = courses.filter(c => c.assignedGroup === group);
       const totalModules = gc.reduce((s, c) => s + c.totalModules, 0);
       const completedModules = gc.reduce((s, c) => s + c.completedModules, 0);
@@ -62,9 +110,18 @@ export function Groups() {
       const completionPercentage = totalModules ? Math.round((completedModules / totalModules) * 100) : 0;
       const participantCount = participants.filter(p => p.group === group).length;
       return { group, totalCourses: gc.length, totalModules, completedModules, technicalCourses, nonTechnicalCourses, completionPercentage, participantCount };
-    }), [courses, participants]);
+    }), [groups, courses, participants]);
 
-  const sorted = useMemo(() => [...groupData].sort((a, b) => b.completionPercentage - a.completionPercentage), [groupData]);
+  const sorted = useMemo(() =>
+    [...groupData].sort((a, b) => b.completionPercentage - a.completionPercentage),
+    [groupData]);
+  const pagination = usePagination(groupData.length, 10);
+  const paginatedGroupData = useMemo(
+    () => groupData.slice(pagination.offset, pagination.offset + pagination.limit),
+    [groupData, pagination.offset, pagination.limit]
+  );
+
+  const modalGroupName = isEditMode && editMatch ? decodeURIComponent(editMatch[1]).toUpperCase() : null;
 
   return (
     <div className="space-y-6">
@@ -76,16 +133,14 @@ export function Groups() {
           <p className="text-muted-foreground">Track progress and performance across all digitisation groups</p>
         </div>
         {canEditGroups && (
-          <div className="flex gap-2">
-            <button onClick={() => setShowAddGroup(true)} className="btn btn-primary">
-              <Plus className="w-4 h-4" /> Add Group
-            </button>
-          </div>
+          <button onClick={openAddGroup} className="btn btn-primary">
+            <Plus className="w-4 h-4" /> Add Group
+          </button>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {groupData.map(({ group, totalCourses, totalModules, completedModules, technicalCourses, nonTechnicalCourses, completionPercentage, participantCount }) => (
+        {paginatedGroupData.map(({ group, totalCourses, totalModules, completedModules, technicalCourses, nonTechnicalCourses, completionPercentage, participantCount }) => (
           <div key={group} className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-shadow">
             <div className="p-6 text-white relative" style={{ background: `linear-gradient(135deg, ${groupColors[group] ?? '#037b90'}, ${groupColors[group] ?? '#037b90'}cc)` }}>
               <div className="flex items-center justify-between mb-4">
@@ -94,10 +149,18 @@ export function Groups() {
               </div>
               {canEditGroups && (
                 <div className="absolute top-4 right-4 flex gap-1">
-                  <button onClick={() => handleEditGroup(group)} className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+                  <button
+                    onClick={() => openEditGroup(group)}
+                    className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                    title="Rename group"
+                  >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDeleteGroup(group)} className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors">
+                  <button
+                    onClick={() => handleDeleteGroup(group)}
+                    className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
+                    title="Delete group"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -140,6 +203,27 @@ export function Groups() {
           </div>
         ))}
       </div>
+      <div className="bg-card rounded-xl border border-border">
+        <PaginationControls
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize}
+          pageSizeOptions={pagination.pageSizeOptions}
+          from={pagination.from}
+          to={pagination.to}
+          totalItems={groupData.length}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
+      </div>
+
+      {groups.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
+          <p className="text-xl">No groups yet</p>
+          {canEditGroups && <p className="text-sm mt-1">Click "Add Group" to create the first group.</p>}
+        </div>
+      )}
 
       <div className="bg-card rounded-xl p-6 border border-border">
         <h2 className="text-xl mb-6">🏆 Group Leaderboard</h2>
@@ -169,61 +253,49 @@ export function Groups() {
         </div>
       </div>
 
-      {/* Edit/Add Group Modal */}
-      {(editingGroup !== null || showAddGroup) && (
+      {/* Edit / Add Group Modal */}
+      {(isAddMode || isEditMode) && (
         <div className="modal-backdrop" onClick={e => {
-          if (e.target === e.currentTarget) {
-            setEditingGroup(null);
-            setShowAddGroup(false);
-          }
+          if (e.target === e.currentTarget) closeForm();
         }}>
           <div className="modal-box max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-border">
               <h2 className="text-xl font-semibold">
-                {editingGroup !== null ? 'Edit Group' : 'Add New Group'}
+                {isEditMode ? `Rename Group ${modalGroupName}` : 'Add New Group'}
               </h2>
-              <button 
-                onClick={() => {
-                  setEditingGroup(null);
-                  setShowAddGroup(false);
-                }} 
-                className="btn-icon p-2"
-              >
+              <button onClick={closeForm} className="btn-icon p-2">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6">
-              <div>
-                <label className="block mb-1.5 text-sm font-medium">Group Name</label>
-                <input
-                  type="text"
-                  className="field"
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  placeholder="Enter group name (e.g., D)"
-                  maxLength={1}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Single character group identifier (A-Z)
-                </p>
-              </div>
+              <label className="block mb-1.5 text-sm font-medium">Group Name</label>
+              <input
+                type="text"
+                className="field"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value.toUpperCase())}
+                placeholder="Enter group name (e.g., G)"
+                maxLength={4}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') isEditMode ? handleSaveGroup() : handleAddGroup();
+                  if (e.key === 'Escape') closeForm();
+                }}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Short identifier for the group (e.g., A, B, G1)
+              </p>
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-border">
-              <button 
-                onClick={() => {
-                  setEditingGroup(null);
-                  setShowAddGroup(false);
-                }} 
-                className="btn btn-muted"
-              >
+              <button onClick={closeForm} className="btn btn-muted">
                 Cancel
               </button>
-              <button 
-                onClick={editingGroup !== null ? handleSaveGroup : handleAddGroup} 
+              <button
+                onClick={isEditMode ? handleSaveGroup : handleAddGroup}
                 className="btn btn-primary"
               >
                 <Save className="w-4 h-4" />
-                {editingGroup !== null ? 'Save Changes' : 'Add Group'}
+                {isEditMode ? 'Save Changes' : 'Add Group'}
               </button>
             </div>
           </div>

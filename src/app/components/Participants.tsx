@@ -1,8 +1,11 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router';
 import { Search, Plus, Edit, Trash2, Users, DollarSign, X, Save, Upload, Download, FileText, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { GROUPS, Group, Participant } from '../data/mockData';
+import { PaginationControls } from './ui/PaginationControls';
+import { usePagination } from '../hooks/usePagination';
 
 const EMPTY: Omit<Participant, 'id'> = {
   name: '', email: '', role: 'Content Digitiser', group: 'A', dsaType: 'In-County', daysAttending: 7,
@@ -11,15 +14,23 @@ const EMPTY: Omit<Participant, 'id'> = {
 export function Participants() {
   const { user } = useAuth();
   const { participants, baseDailyRate, dsaRates, addParticipant, updateParticipant, removeParticipant } = useData();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [search, setSearch] = useState('');
   const [filterGroup, setFilterGroup] = useState<Group | 'all'>('all');
   const [filterDSA, setFilterDSA] = useState<'all' | 'In-County' | 'Out-County'>('all');
-  const [modal, setModal] = useState<{ mode: 'add' | 'edit'; data: Participant | null } | null>(null);
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [form, setForm] = useState<Omit<Participant, 'id'>>(EMPTY);
   const [toast, setToast] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // URL-based state management
+  const locationPath = location.pathname;
+  const isAddMode = locationPath === '/participants/add-participant';
+  const isEditMode = locationPath.startsWith('/participants/edit/') && locationPath.split('/')[3];
+  const isViewMode = !isAddMode && !isEditMode;
 
   const canAdd = user?.role !== 'Viewer/Digitiser';
   const canEdit = (g: Group) => user?.role === 'System Admin' || user?.role === 'Programme Lead' || (user?.role === 'Group Leader' && user.group === g);
@@ -197,21 +208,42 @@ export function Participants() {
   }), [participants, search, filterGroup, filterDSA]);
 
   const totalDSA = participants.reduce((s, p) => s + calcDSA(p), 0);
+  const pagination = usePagination(filtered.length, 10);
+  const paginatedParticipants = useMemo(
+    () => filtered.slice(pagination.offset, pagination.offset + pagination.limit),
+    [filtered, pagination.offset, pagination.limit]
+  );
 
-  const openAdd = () => { setForm(EMPTY); setModal({ mode: 'add', data: null }); };
-  const openEdit = (p: Participant) => { setForm({ ...p }); setModal({ mode: 'edit', data: p }); };
-  const closeModal = () => setModal(null);
+  // URL-based navigation functions
+  const openAdd = () => navigate('/participants/add-participant');
+  const openEdit = (p: Participant) => navigate(`/participants/edit/${p.id}`);
+  const closeForm = () => navigate('/participants');
+
+  // Initialize form based on URL mode
+  useEffect(() => {
+    if (isAddMode) {
+      setForm(EMPTY);
+    } else if (isEditMode) {
+      const participantId = locationPath.split('/')[3];
+      const participant = participants.find(p => p.id === participantId);
+      if (participant) {
+        setForm({ ...participant });
+        setEditingParticipant(participant);
+      }
+    }
+  }, [locationPath, participants, isAddMode, isEditMode]);
 
   const handleSave = () => {
     if (!form.name.trim() || !form.email.trim()) { showToast('⚠️ Name and email are required.'); return; }
-    if (modal?.mode === 'add') {
+    if (isAddMode) {
       addParticipant({ ...form, id: `p-${Date.now()}` });
       showToast('✅ Participant added.');
-    } else if (modal?.data) {
-      updateParticipant({ ...form, id: modal.data.id });
+    } else if (isEditMode) {
+      const participantId = locationPath.split('/')[3];
+      updateParticipant({ ...form, id: participantId });
       showToast('✅ Participant updated.');
     }
-    closeModal();
+    closeForm();
   };
 
   const handleDelete = (p: Participant) => {
@@ -327,7 +359,7 @@ export function Participants() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(p => (
+              {paginatedParticipants.map(p => (
                 <tr key={p.id} className="table-row-hover transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="font-medium">{p.name}</div>
@@ -348,14 +380,14 @@ export function Participants() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="py-12 text-center text-muted-foreground">No participants found.</td></tr>}
+              {paginatedParticipants.length === 0 && <tr><td colSpan={7} className="py-12 text-center text-muted-foreground">No participants found.</td></tr>}
             </tbody>
           </table>
         </div>
 
         {/* Mobile */}
         <div className="md:hidden divide-y divide-border">
-          {filtered.map(p => (
+          {paginatedParticipants.map(p => (
             <div key={p.id} className="p-4 space-y-2">
               <div className="flex items-start justify-between">
                 <div>
@@ -375,22 +407,28 @@ export function Participants() {
               <div className="text-sm font-mono font-semibold text-primary">DSA: KES {calcDSA(p).toLocaleString()}</div>
             </div>
           ))}
-          {filtered.length === 0 && <div className="py-10 text-center text-muted-foreground text-sm">No participants found.</div>}
+          {paginatedParticipants.length === 0 && <div className="py-10 text-center text-muted-foreground text-sm">No participants found.</div>}
         </div>
-
-        <div className="px-5 py-3 border-t border-border flex justify-between text-xs text-muted-foreground">
-          <span>Showing {filtered.length} of {participants.length}</span>
-          <span>Base rate: KES {baseDailyRate.toLocaleString()}/day</span>
-        </div>
+        <PaginationControls
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize}
+          pageSizeOptions={pagination.pageSizeOptions}
+          from={pagination.from}
+          to={pagination.to}
+          totalItems={filtered.length}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
 
-      {/* Modal */}
-      {modal && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal-box max-w-lg">
+      {/* Add/Edit Form - URL-based */}
+      {(isAddMode || isEditMode) && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={e => e.target === e.currentTarget && closeForm()}>
+          <div className="bg-card rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="text-xl font-semibold">{modal.mode === 'add' ? 'Add Participant' : 'Edit Participant'}</h2>
-              <button onClick={closeModal} className="btn-icon p-2"><X className="w-5 h-5" /></button>
+              <h2 className="text-xl font-semibold">{isAddMode ? 'Add Participant' : 'Edit Participant'}</h2>
+              <button onClick={closeForm} className="btn-icon p-2 hover:bg-muted rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -435,7 +473,7 @@ export function Participants() {
               </div>
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-border">
-              <button onClick={closeModal} className="btn btn-muted">Cancel</button>
+              <button onClick={closeForm} className="btn btn-muted">Cancel</button>
               <button onClick={handleSave} className="btn btn-primary"><Save className="w-4 h-4" /> Save</button>
             </div>
           </div>

@@ -1,9 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { Video, Plus, Edit2, Trash2, CheckCircle, XCircle, X, Save } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { GROUPS } from '../data/mockData';
 import { VideoLog } from '../data/multimediaData';
+import { usePagination } from '../hooks/usePagination';
+import { PaginationControls } from './ui/PaginationControls';
 
 const EMPTY_LOG: Omit<VideoLog, 'id'> = {
   courseCode: '', module: 'Mod 1', group: 'A', title: '',
@@ -11,6 +14,9 @@ const EMPTY_LOG: Omit<VideoLog, 'id'> = {
 };
 
 export function MultimediaTracker() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { groupId } = useParams();
   const { user } = useAuth();
   const { videoLogs, groupVideoStats, setVideoLogs } = useData();
   const [editTarget, setEditTarget] = useState<VideoLog | null>(null);
@@ -23,10 +29,30 @@ export function MultimediaTracker() {
 
   const totalVideos = groupVideoStats.reduce((s, g) => s + g.totalVideos, 0);
   const completedVideos = groupVideoStats.reduce((s, g) => s + g.videosComplete, 0);
+  const pagination = usePagination(videoLogs.length, 10);
+  const paginatedVideoLogs = useMemo(
+    () => videoLogs.slice(pagination.offset, pagination.offset + pagination.limit),
+    [videoLogs, pagination.offset, pagination.limit]
+  );
 
-  const openNew = () => { setForm(EMPTY_LOG); setIsNew(true); setEditTarget(null); };
-  const openEdit = (v: VideoLog) => { setForm({ ...v }); setEditTarget(v); setIsNew(false); };
-  const closeModal = () => { setIsNew(false); setEditTarget(null); };
+  const isLogMode = location.pathname.startsWith('/multimedia/log-video');
+  const selectedGroup = groupId ? decodeURIComponent(groupId).replace(/^group-/, '').toUpperCase() : null;
+
+  useEffect(() => {
+    if (isLogMode && !editTarget) {
+      setIsNew(true);
+      setForm(selectedGroup ? { ...EMPTY_LOG, group: selectedGroup as any } : EMPTY_LOG);
+    }
+  }, [isLogMode, selectedGroup, editTarget]);
+
+  const openNew = () => {
+    setForm(selectedGroup ? { ...EMPTY_LOG, group: selectedGroup as any } : EMPTY_LOG);
+    setIsNew(true);
+    setEditTarget(null);
+    navigate(selectedGroup ? `/multimedia/log-video/group-${selectedGroup.toLowerCase()}` : '/multimedia/log-video');
+  };
+  const openEdit = (v: VideoLog) => { setForm({ ...v }); setEditTarget(v); setIsNew(false); navigate('/multimedia/log-video'); };
+  const closeModal = () => { setIsNew(false); setEditTarget(null); navigate('/multimedia'); };
 
   const handleSave = () => {
     if (!form.courseCode || !form.title) { showToast('⚠️ Course code and title are required.'); return; }
@@ -116,7 +142,7 @@ export function MultimediaTracker() {
               </tr>
             </thead>
             <tbody>
-              {videoLogs.map(v => (
+              {paginatedVideoLogs.map(v => (
                 <tr key={v.id} className="border-b border-border hover:bg-muted/50 transition-colors">
                   <td className="py-3 px-4 font-mono text-sm">{v.courseCode}</td>
                   <td className="py-3 px-4 text-sm">{v.module}</td>
@@ -141,9 +167,20 @@ export function MultimediaTracker() {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          pageSize={pagination.pageSize}
+          pageSizeOptions={pagination.pageSizeOptions}
+          from={pagination.from}
+          to={pagination.to}
+          totalItems={videoLogs.length}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
 
-      {(isNew || editTarget) && (
+      {(isNew || editTarget || isLogMode) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && closeModal()}>
           <div className="bg-card rounded-2xl shadow-2xl p-8 w-full max-w-lg border border-border mx-4">
             <div className="flex items-center justify-between mb-6">

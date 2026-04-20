@@ -3,6 +3,7 @@ import {
   User,
   mockUsers,
   GROUP_COLORS,
+  GROUPS as DEFAULT_GROUPS,
   mockWorkshop,
   mockProgrammes,
   allMockCourses,
@@ -26,10 +27,11 @@ import { mockVideoLogs, mockGroupVideoStats, VideoLog, GroupVideoStats } from '.
 import { useRecycleBin } from './RecycleBinContext';
 
 const STORAGE_KEY = 'dts_app_state';
-const DATA_VERSION = '2.0'; // Increment to force cache refresh
+const DATA_VERSION = '2.1'; // Increment to force cache refresh
 
 export interface DataContextType {
   users: User[];
+  groups: string[];
   workshop: Workshop;
   programmes: Programme[];
   courses: Course[];
@@ -37,7 +39,7 @@ export interface DataContextType {
   attendance: Attendance[];
   paymentSchedules: PaymentSchedule[];
   checklistItems: ChecklistItem[];
-  groupColors: Record<Group, string>;
+  groupColors: Record<string, string>;
   permissions: Record<Role, Record<string, boolean>>;
   baseDailyRate: number;
   dsaRates: typeof DSA_RATES;
@@ -46,6 +48,9 @@ export interface DataContextType {
   setUsers: (users: User[]) => void;
   addUser: (user: User) => void;
   updateUser: (user: User) => void;
+  addGroup: (name: string) => void;
+  removeGroup: (name: string) => void;
+  renameGroup: (oldName: string, newName: string) => void;
   setWorkshop: (workshop: Workshop) => void;
   setCourses: (courses: Course[]) => void;
   addCourse: (course: Course) => void;
@@ -59,12 +64,12 @@ export interface DataContextType {
   restoreParticipant: (participant: Participant) => void;
   setAttendance: (attendance: Attendance[]) => void;
   toggleAttendance: (participantId: string, day: number) => void;
-  markAttendanceDayPresent: (day: number, group: Group | 'all') => void;
+  markAttendanceDayPresent: (day: number, group: string) => void;
   setPaymentSchedules: (payments: PaymentSchedule[]) => void;
   updatePaymentSchedule: (payment: PaymentSchedule) => void;
   setChecklistItems: (items: ChecklistItem[]) => void;
   updateChecklistItem: (item: ChecklistItem) => void;
-  setGroupColor: (group: Group, color: string) => void;
+  setGroupColor: (group: string, color: string) => void;
   setPermissions: (permissions: Record<Role, Record<string, boolean>>) => void;
   setDSAConfig: (baseRate: number, rates: typeof DSA_RATES) => void;
   setVideoLogs: (logs: VideoLog[]) => void;
@@ -87,6 +92,7 @@ const normalizeSavedState = (saved: any) => {
       : mockWorkshop;
     return {
       users: saved.users ?? mockUsers,
+      groups: saved.groups ?? [...DEFAULT_GROUPS],
       workshop,
       programmes: saved.programmes ?? mockProgrammes,
       courses: saved.courses ?? allMockCourses,
@@ -94,7 +100,7 @@ const normalizeSavedState = (saved: any) => {
       attendance: saved.attendance ?? mockAttendance,
       paymentSchedules: saved.paymentSchedules ?? mockPaymentSchedules,
       checklistItems: saved.checklistItems ?? mockChecklistItems,
-      groupColors: saved.groupColors ?? GROUP_COLORS,
+      groupColors: saved.groupColors ?? { ...GROUP_COLORS },
       permissions: saved.permissions ?? DEFAULT_ROLE_PERMISSIONS,
       baseDailyRate: saved.baseDailyRate ?? BASE_DAILY_RATE,
       dsaRates: saved.dsaRates ?? DSA_RATES,
@@ -127,6 +133,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { addToRecycleBin } = useRecycleBin();
 
   const [users, setUsers] = useState<User[]>(initialState?.users ?? mockUsers);
+  const [groups, setGroups] = useState<string[]>(initialState?.groups ?? [...DEFAULT_GROUPS]);
   const [workshop, setWorkshop] = useState<Workshop>(initialState?.workshop ?? mockWorkshop);
   const [programmes, setProgrammes] = useState<Programme[]>(initialState?.programmes ?? mockProgrammes);
   const [courses, setCourses] = useState<Course[]>(initialState?.courses ?? allMockCourses);
@@ -134,7 +141,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [attendance, setAttendance] = useState<Attendance[]>(initialState?.attendance ?? mockAttendance);
   const [paymentSchedules, setPaymentSchedules] = useState<PaymentSchedule[]>(initialState?.paymentSchedules ?? mockPaymentSchedules);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(initialState?.checklistItems ?? mockChecklistItems);
-  const [groupColors, setGroupColors] = useState<Record<Group, string>>(initialState?.groupColors ?? GROUP_COLORS);
+  const [groupColors, setGroupColors] = useState<Record<string, string>>(initialState?.groupColors ?? { ...GROUP_COLORS });
   const [permissions, setPermissions] = useState<Record<Role, Record<string, boolean>>>(initialState?.permissions ?? DEFAULT_ROLE_PERMISSIONS);
   const [baseDailyRate, setBaseDailyRate] = useState<number>(initialState?.baseDailyRate ?? BASE_DAILY_RATE);
   const [dsaRates, setDsaRates] = useState<typeof DSA_RATES>(initialState?.dsaRates ?? DSA_RATES);
@@ -145,6 +152,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const payload = {
       version: DATA_VERSION,
       users,
+      groups,
       workshop,
       programmes,
       courses,
@@ -160,7 +168,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       groupVideoStats,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [users, workshop, programmes, courses, participants, attendance, paymentSchedules, checklistItems, groupColors, permissions, baseDailyRate, dsaRates, videoLogs, groupVideoStats]);
+  }, [users, groups, workshop, programmes, courses, participants, attendance, paymentSchedules, checklistItems, groupColors, permissions, baseDailyRate, dsaRates, videoLogs, groupVideoStats]);
 
   const restoreCourse = (course: Course) => {
     setCourses((prev) => [...prev, course]);
@@ -187,6 +195,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const addUser = (user: User) => setUsers((prev) => [...prev, user]);
   const updateUser = (user: User) => setUsers((prev) => prev.map((item) => (item.id === user.id ? user : item)));
+
+  const addGroup = (name: string) => {
+    const trimmed = name.trim().toUpperCase();
+    if (!trimmed) return;
+    setGroups((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+    // Assign a default color if not already present
+    setGroupColors((prev) => (prev[trimmed] ? prev : { ...prev, [trimmed]: '#037b90' }));
+  };
+
+  const removeGroup = (name: string) => {
+    setGroups((prev) => prev.filter((g) => g !== name));
+    setCourses((prev) => prev.filter((c) => c.assignedGroup !== name));
+    setParticipants((prev) => prev.filter((p) => p.group !== name));
+  };
+
+  const renameGroup = (oldName: string, newName: string) => {
+    const trimmed = newName.trim().toUpperCase();
+    if (!trimmed || trimmed === oldName) return;
+    setGroups((prev) => prev.map((g) => (g === oldName ? trimmed : g)));
+    setCourses((prev) => prev.map((c) => c.assignedGroup === oldName ? { ...c, assignedGroup: trimmed as Group } : c));
+    setParticipants((prev) => prev.map((p) => p.group === oldName ? { ...p, group: trimmed as Group } : p));
+    setGroupColors((prev) => {
+      const next = { ...prev };
+      if (next[oldName]) { next[trimmed] = next[oldName]; delete next[oldName]; }
+      return next;
+    });
+  };
 
   const addCourse = (course: Course) => setCourses((prev) => [...prev, course]);
   const updateCourse = (course: Course) => setCourses((prev) => prev.map((item) => (item.id === course.id ? course : item)));
@@ -231,7 +266,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const markAttendanceDayPresent = (day: number, group: Group | 'all') => {
+  const markAttendanceDayPresent = (day: number, group: string) => {
     setAttendance((prev) => prev.map((record) => {
       if (record.day !== day) return record;
       const participant = participants.find((p) => p.id === record.participantId);
@@ -244,7 +279,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updatePaymentSchedule = (payment: PaymentSchedule) => setPaymentSchedules((prev) => prev.map((item) => (item.id === payment.id ? payment : item)));
   const updateChecklistItem = (item: ChecklistItem) => setChecklistItems((prev) => prev.map((existing) => (existing.id === item.id ? item : existing)));
 
-  const setGroupColor = (group: Group, color: string) => setGroupColors((prev) => ({ ...prev, [group]: color }));
+  const setGroupColor = (group: string, color: string) => setGroupColors((prev) => ({ ...prev, [group]: color }));
   const setDSAConfig = (baseRate: number, rates: typeof DSA_RATES) => {
     setBaseDailyRate(baseRate);
     setDsaRates(rates);
@@ -253,6 +288,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const exportState = () => {
     const payload = {
       users,
+      groups,
       workshop,
       programmes,
       courses,
@@ -278,6 +314,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const resetState = () => {
     setUsers(mockUsers);
+    setGroups([...DEFAULT_GROUPS]);
     setWorkshop(mockWorkshop);
     setProgrammes(mockProgrammes);
     setCourses(allMockCourses);
@@ -285,7 +322,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setAttendance(mockAttendance);
     setPaymentSchedules(mockPaymentSchedules);
     setChecklistItems(mockChecklistItems);
-    setGroupColors(GROUP_COLORS);
+    setGroupColors({ ...GROUP_COLORS });
     setPermissions(DEFAULT_ROLE_PERMISSIONS);
     setBaseDailyRate(BASE_DAILY_RATE);
     setDsaRates(DSA_RATES);
@@ -296,6 +333,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       users,
+      groups,
       workshop,
       programmes,
       courses,
@@ -312,6 +350,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setUsers,
       addUser,
       updateUser,
+      addGroup,
+      removeGroup,
+      renameGroup,
       setWorkshop,
       setCourses,
       addCourse,
@@ -340,6 +381,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }),
     [
       users,
+      groups,
       workshop,
       programmes,
       courses,

@@ -1,19 +1,29 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Area, AreaChart } from 'recharts';
-import { Calendar, Users, User, BookOpen, Target, TrendingUp, Clock, MapPin, Activity, CheckCircle, AlertCircle, Zap, FileText, X, BarChart3, PieChart as PieChartIcon, TrendingDown, Award } from 'lucide-react';
+import { Calendar, Users, User, BookOpen, Target, TrendingUp, Clock, MapPin, Activity, CheckCircle, AlertCircle, Zap, FileText, X, BarChart3, PieChart as PieChartIcon, TrendingDown, Award, LogOut, ChevronDown, Settings, KeyRound } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { GROUPS, Group, mockProgrammes } from '../data/mockData';
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { courses, participants, workshop, attendance } = useData();
+  const location = useLocation();
+  const { user, logout, impersonate } = useAuth();
+  const { courses, participants, workshop, attendance, updateUser } = useData();
   const [timeRemaining, setTimeRemaining] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<Group | 'all'>('all');
   const [selectedProgramme, setSelectedProgramme] = useState<string>('all');
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [profileName, setProfileName] = useState(user?.name ?? '');
+  const [profileEmail, setProfileEmail] = useState(user?.email ?? '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [profileError, setProfileError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const calc = () => {
@@ -29,6 +39,25 @@ export function Dashboard() {
     const t = setInterval(calc, 1000);
     return () => clearInterval(t);
   }, [workshop]);
+
+  useEffect(() => {
+    setProfileName(user?.name ?? '');
+    setProfileEmail(user?.email ?? '');
+  }, [user]);
+
+  const showProfileModal = location.pathname === '/dashboard/update-profile';
+  const showPasswordModal = location.pathname === '/dashboard/change-password';
+
+  useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (!profileMenuRef.current) return;
+      if (!profileMenuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
 
   const stats = useMemo(() => {
     const totalModules = courses.length * 10;
@@ -79,11 +108,126 @@ export function Dashboard() {
     { name: 'Remaining', value: filteredStats.totalModules - filteredStats.completedModules, color: '#e5e7eb' },
   ];
 
+  const handleDashboardLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  const handleSaveProfile = () => {
+    if (!user) return;
+    const name = profileName.trim();
+    const email = profileEmail.trim();
+    if (!name || !email) {
+      setProfileError('Name and email are required.');
+      return;
+    }
+    updateUser({ ...user, name, email });
+    impersonate(user.id);
+    setProfileError('');
+    navigate('/dashboard');
+    setShowProfileMenu(false);
+  };
+
+  const handleChangePassword = () => {
+    if (!user) return;
+    if (currentPassword !== user.password) {
+      setPasswordError('Current password is incorrect.');
+      return;
+    }
+    if (newPassword.length < 4) {
+      setPasswordError('New password must be at least 4 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+    updateUser({ ...user, password: newPassword });
+    impersonate(user.id);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    navigate('/dashboard');
+    setShowProfileMenu(false);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="dashboard-top-nav rounded-xl bg-white px-4 py-3">
+        <div className="flex justify-end">
+          <div ref={profileMenuRef} className="relative">
+            <button
+              onClick={() => setShowProfileMenu((s) => !s)}
+              className="moodle-profile-trigger"
+              aria-label="Open profile menu"
+            >
+              <div className="moodle-avatar">{user?.name?.charAt(0)?.toUpperCase() ?? 'U'}</div>
+              <div className="text-left hidden sm:block">
+                <div className="text-sm font-semibold leading-none">{user?.name ?? 'User'}</div>
+                <div className="text-xs text-muted-foreground mt-1">{user?.role ?? 'Account'}</div>
+              </div>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showProfileMenu && (
+              <div className="moodle-profile-menu">
+                <div className="moodle-profile-head">
+                  <div className="moodle-profile-user">
+                    <div className="moodle-avatar moodle-avatar-lg">{user?.name?.charAt(0)?.toUpperCase() ?? 'C'}</div>
+                    <div>
+                      <div className="moodle-greeting">Hi, {user?.role ?? 'User'}!</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="moodle-profile-links">
+                  <button
+                    className="moodle-profile-item"
+                    onClick={() => {
+                      setProfileError('');
+                      navigate('/dashboard/update-profile');
+                      setShowProfileMenu(false);
+                    }}
+                  >
+                    <Settings className="h-4 w-4 moodle-profile-icon" />
+                    Update Profile
+                  </button>
+                  <button
+                    className="moodle-profile-item"
+                    onClick={() => {
+                      setPasswordError('');
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      navigate('/dashboard/change-password');
+                      setShowProfileMenu(false);
+                    }}
+                  >
+                    <KeyRound className="h-4 w-4 moodle-profile-icon" />
+                    Change Password
+                  </button>
+                  <button className="moodle-profile-item" onClick={handleDashboardLogout}>
+                    <LogOut className="h-4 w-4 moodle-profile-icon" />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-primary/[0.07] via-card to-card p-6 md:p-8 shadow-[0_18px_40px_-26px_rgba(3,123,144,0.5)]">
+        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-chart-1/10 blur-3xl" />
+        <div className="relative flex items-center justify-between">
         <div>
-          <h1 className="text-4xl mb-2">{workshop.name}</h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium tracking-wide text-primary">
+              <Activity className="h-3.5 w-3.5" />
+              LIVE DASHBOARD
+            </div>
+          <h1 className="text-4xl mb-2 mt-3 tracking-tight">{workshop.name}</h1>
           <div className="flex items-center gap-4">
             <p className="text-muted-foreground">Welcome back, {user?.name}</p>
             <div className="news-ticker flex items-center gap-1.5 flex-1 max-w-md">
@@ -94,42 +238,47 @@ export function Dashboard() {
         </div>
         <div className="text-right">
           <div className="text-sm text-muted-foreground mb-1">Time Remaining</div>
-          <div className="text-2xl font-mono bg-primary/10 text-primary px-4 py-2 rounded-lg inline-flex items-center gap-2">
+            <div className="text-2xl font-mono bg-primary/10 border border-primary/15 text-primary px-4 py-2 rounded-xl inline-flex items-center gap-2 shadow-sm">
             <Clock className="w-5 h-5" />{timeRemaining}
           </div>
         </div>
       </div>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
           { label: 'Total Courses', value: stats.totalCourses, sub: `${mockProgrammes.length} programmes`, icon: BookOpen, color: 'text-primary' },
           { label: 'Total Modules', value: stats.totalModules, sub: `${stats.completedModules} completed`, icon: Target, color: 'text-secondary' },
           { label: 'Duration', value: `${workshop.numberOfDays} Days`, sub: `Day ${stats.currentDay} of ${workshop.numberOfDays}`, icon: Calendar, color: 'text-chart-3' },
           { label: 'Daily Target', value: stats.dailyTarget, sub: stats.isOnTrack ? '✓ On Track' : 'Behind Schedule', icon: TrendingUp, color: stats.isOnTrack ? 'text-chart-3' : 'text-destructive' },
         ].map(({ label, value, sub, icon: Icon, color }) => (
-          <div key={label} className="bg-card rounded-xl p-6 border border-border shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
+          <div key={label} className="group bg-card/90 backdrop-blur rounded-2xl p-6 border border-border/70 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)] hover:shadow-[0_18px_30px_-18px_rgba(3,123,144,0.35)] hover:-translate-y-0.5 transition-all duration-300">
+            <div className="flex items-center justify-between mb-3">
               <div className="text-sm text-muted-foreground">{label}</div>
-              <Icon className={`w-5 h-5 ${color}`} />
+              <div className="rounded-lg border border-border/80 bg-background/70 p-2 group-hover:border-primary/30 transition-colors">
+                <Icon className={`w-5 h-5 ${color}`} />
+              </div>
             </div>
-            <div className="text-3xl mb-1">{value}</div>
+            <div className="text-3xl mb-2 tracking-tight">{value}</div>
             <div className={`text-xs ${color === 'text-destructive' && !stats.isOnTrack && label === 'Daily Target' ? 'text-destructive' : 'text-muted-foreground'}`}>{sub}</div>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl p-6 border border-border">
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)]">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl">Overall Progress</h2>
+            <h2 className="text-xl font-semibold tracking-tight">Overall Progress</h2>
             <div className="flex gap-2">
               <select value={selectedGroup} onChange={e => { setSelectedGroup(e.target.value as Group | 'all'); setSelectedProgramme('all'); }}
-                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm">
+                aria-label="Filter overall progress by group"
+                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm shadow-sm">
                 <option value="all">All Groups</option>
                 {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
               </select>
               <select value={selectedProgramme} onChange={e => { setSelectedProgramme(e.target.value); setSelectedGroup('all'); }}
-                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm">
+                aria-label="Filter overall progress by programme"
+                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm shadow-sm">
                 <option value="all">All Programmes</option>
                 {mockProgrammes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -144,20 +293,31 @@ export function Dashboard() {
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-5xl mb-1">{filteredStats.completionPercentage}%</div>
-                <div className="text-sm text-muted-foreground">Complete</div>
+              <div
+                className="progress-center-orbit"
+                style={{ ['--progress-angle' as string]: `${filteredStats.completionPercentage * 3.6}deg` }}
+              >
+                <div className="text-center">
+                  <div className="text-5xl mb-1 progress-percentage-text">{filteredStats.completionPercentage}%</div>
+                  <div className="text-sm text-muted-foreground">Complete</div>
+                </div>
               </div>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="text-center"><div className="text-2xl">{filteredStats.completedModules}</div><div className="text-sm text-muted-foreground">Completed</div></div>
-            <div className="text-center"><div className="text-2xl">{filteredStats.totalModules - filteredStats.completedModules}</div><div className="text-sm text-muted-foreground">Remaining</div></div>
+            <div className="text-center rounded-xl border border-emerald-300/40 bg-emerald-500/5 p-3">
+              <div className="text-2xl text-emerald-600">{filteredStats.completedModules}</div>
+              <div className="text-sm text-muted-foreground">Completed</div>
+            </div>
+            <div className="text-center rounded-xl border border-slate-300/40 bg-slate-500/5 p-3">
+              <div className="text-2xl">{filteredStats.totalModules - filteredStats.completedModules}</div>
+              <div className="text-sm text-muted-foreground">Remaining</div>
+            </div>
           </div>
         </div>
 
-        <div className="bg-card rounded-xl p-6 border border-border">
-          <h2 className="text-xl mb-6">Progress by Group</h2>
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)]">
+          <h2 className="text-xl font-semibold tracking-tight mb-6">Progress by Group</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={groupStats}>
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -170,8 +330,8 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="bg-card rounded-xl p-6 border border-border">
-        <h2 className="text-xl mb-6">Daily Progress Tracker</h2>
+      <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_16px_34px_-24px_rgba(15,23,42,0.45)]">
+        <h2 className="text-xl font-semibold tracking-tight mb-6">Daily Progress Tracker</h2>
         <div className="mb-4 text-sm text-muted-foreground">
           Current Day: {stats.currentDay} of {workshop.numberOfDays} · Daily Target: {stats.dailyTarget} modules
         </div>
@@ -188,11 +348,11 @@ export function Dashboard() {
             return (
               <div 
                 key={i} 
-                className={`p-4 rounded-lg border transition-all ${
+                className={`p-4 rounded-xl border transition-all ${
                   isCurrent 
-                    ? 'bg-primary/20 border-primary shadow-md scale-105' 
+                    ? 'bg-primary/20 border-primary shadow-md scale-105 ring-1 ring-primary/30' 
                     : isPast 
-                      ? 'bg-muted/50 border-border' 
+                      ? 'bg-muted/50 border-border hover:border-primary/30 hover:bg-primary/5' 
                       : 'bg-background border-border/50 opacity-60'
                 }`}
               >
@@ -214,7 +374,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)]">
           <h2 className="text-xl mb-4 flex items-center gap-2">
             <Users className="w-6 h-6 text-primary" /> 
             Participants
@@ -234,7 +394,7 @@ export function Dashboard() {
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm lg:col-span-2">
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)] lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <TrendingUp className="w-6 h-6 text-primary" />
@@ -246,7 +406,7 @@ export function Dashboard() {
           </div>
           <div className="space-y-4">
             {[...groupStats].sort((a, b) => b.completionPercentage - a.completionPercentage).slice(0, 3).map((g, i) => (
-              <div key={g.group} className={`flex items-center gap-4 p-4 rounded-xl border ${
+              <div key={g.group} className={`flex items-center gap-4 p-4 rounded-2xl border shadow-sm ${
                 i === 0 ? 'bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200' :
                 i === 1 ? 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200' :
                 'bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200'
@@ -289,7 +449,7 @@ export function Dashboard() {
       </div>
 
       {/* Attendance Overview Widget */}
-      <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+      <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_16px_34px_-24px_rgba(15,23,42,0.45)]">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Users className="w-6 h-6 text-primary" />
@@ -341,7 +501,7 @@ export function Dashboard() {
 
       {/* Real-time Activity Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_16px_34px_-24px_rgba(15,23,42,0.45)]">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <Activity className="w-6 h-6 text-primary" />
@@ -402,7 +562,7 @@ export function Dashboard() {
             ].map((activity, index) => {
               const fullTime = new Date(Date.now() - activity.minutesAgo * 60 * 1000).toLocaleTimeString();
               return (
-                <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border-l-4 border-l-primary/20">
+                <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-xl border border-border/60 hover:border-primary/25 transition-colors">
                   <activity.icon className={`w-5 h-5 ${activity.color} flex-shrink-0 mt-0.5`} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">{activity.message}</div>
@@ -431,7 +591,7 @@ export function Dashboard() {
         </div>
 
         {/* Quick Actions Panel */}
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_16px_34px_-24px_rgba(15,23,42,0.45)]">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <Zap className="w-6 h-6 text-primary" />
@@ -442,28 +602,28 @@ export function Dashboard() {
           <div className="grid grid-cols-2 gap-3">
             <button 
               onClick={() => navigate('/courses')}
-              className="flex flex-col items-center gap-2 p-4 bg-primary/10 rounded-xl hover:bg-primary/20 transition-colors"
+              className="flex flex-col items-center gap-2 p-4 bg-primary/10 border border-primary/20 rounded-xl hover:bg-primary/20 transition-colors shadow-sm"
             >
               <BookOpen className="w-6 h-6 text-primary" />
               <span className="text-sm font-medium">Add Course</span>
             </button>
             <button 
               onClick={() => navigate('/attendance')}
-              className="flex flex-col items-center gap-2 p-4 bg-chart-1/10 rounded-xl hover:bg-chart-1/20 transition-colors"
+              className="flex flex-col items-center gap-2 p-4 bg-chart-1/10 border border-chart-1/20 rounded-xl hover:bg-chart-1/20 transition-colors shadow-sm"
             >
               <Users className="w-6 h-6 text-chart-1" />
               <span className="text-sm font-medium">Mark Attendance</span>
             </button>
             <button 
               onClick={() => navigate('/reports')}
-              className="flex flex-col items-center gap-2 p-4 bg-chart-2/10 rounded-xl hover:bg-chart-2/20 transition-colors"
+              className="flex flex-col items-center gap-2 p-4 bg-chart-2/10 border border-chart-2/20 rounded-xl hover:bg-chart-2/20 transition-colors shadow-sm"
             >
               <FileText className="w-6 h-6 text-chart-2" />
               <span className="text-sm font-medium">Generate Report</span>
             </button>
             <button 
               onClick={() => setShowAnalyticsModal(true)}
-              className="flex flex-col items-center gap-2 p-4 bg-chart-3/10 rounded-xl hover:bg-chart-3/20 transition-colors"
+              className="flex flex-col items-center gap-2 p-4 bg-chart-3/10 border border-chart-3/20 rounded-xl hover:bg-chart-3/20 transition-colors shadow-sm"
             >
               <TrendingUp className="w-6 h-6 text-chart-3" />
               <span className="text-sm font-medium">View Analytics</span>
@@ -497,6 +657,7 @@ export function Dashboard() {
                 </h2>
                 <button 
                   onClick={() => setShowAnalyticsModal(false)}
+                  aria-label="Close analytics modal"
                   className="btn-icon p-2 hover:bg-muted"
                 >
                   <X className="w-5 h-5" />
@@ -669,6 +830,103 @@ export function Dashboard() {
                     </ul>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-xl font-semibold">Update Profile</h3>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="btn-icon p-2 hover:bg-muted"
+                aria-label="Close update profile"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">Full Name</label>
+                <input
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  className="field"
+                  placeholder="Enter your full name"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">Email</label>
+                <input
+                  type="email"
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  className="field"
+                  placeholder="Enter your email"
+                />
+              </div>
+              {profileError && <p className="text-sm text-destructive">{profileError}</p>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button className="btn btn-muted" onClick={() => navigate('/dashboard')}>Cancel</button>
+                <button className="btn btn-primary" onClick={handleSaveProfile}>Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-xl font-semibold">Change Password</h3>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="btn-icon p-2 hover:bg-muted"
+                aria-label="Close password modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">Current Password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="field"
+                  placeholder="Current password"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="field"
+                  placeholder="New password"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="field"
+                  placeholder="Confirm new password"
+                />
+              </div>
+              {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button className="btn btn-muted" onClick={() => navigate('/dashboard')}>Cancel</button>
+                <button className="btn btn-primary" onClick={handleChangePassword}>Update Password</button>
               </div>
             </div>
           </div>

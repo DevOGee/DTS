@@ -1,17 +1,24 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router';
 import { MapPin, Calendar, Clock, Users, Activity, Edit, Save, X, Plus, Trash2 } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Workshop } from '../data/mockData';
-import { useSearchParams } from 'react-router';
 
 export function Workshops() {
   const { user } = useAuth();
   const { workshop, courses, participants } = useData();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
-  const [showAddWorkshop, setShowAddWorkshop] = useState(false);
   const [toast, setToast] = useState('');
+  
+  // URL-based state management
+  const locationPath = location.pathname;
+  const isAddMode = locationPath === '/workshops/add-workshop';
+  const isEditMode = locationPath.startsWith('/workshops/edit/') && locationPath.split('/')[3];
+  const isViewMode = !isAddMode && !isEditMode;
   
   // Get filter status from URL parameters
   const urlStatus = searchParams.get('status') as 'all' | 'active' | 'upcoming' | 'completed' | null;
@@ -38,14 +45,19 @@ export function Workshops() {
     }
   }, [urlStatus]);
 
+  // URL-based navigation functions
+  const openAddWorkshop = () => navigate('/workshops/add-workshop');
+  const openEditWorkshop = (workshop: Workshop) => navigate(`/workshops/edit/${workshop.id}`);
+  const closeForm = () => navigate('/workshops');
+
   const handleEditWorkshop = (workshop: Workshop) => {
-    setEditingWorkshop(workshop);
+    openEditWorkshop(workshop);
   };
 
   const handleSaveWorkshop = (updatedWorkshop: Workshop) => {
     // Note: In a real implementation, this would update the workshop in the data context
     showToast(`Workshop "${updatedWorkshop.name}" updated successfully`);
-    setEditingWorkshop(null);
+    closeForm();
   };
 
   const handleDeleteWorkshop = (workshop: Workshop) => {
@@ -62,7 +74,7 @@ export function Workshops() {
       id: `w-${Date.now()}`
     };
     showToast(`Workshop "${workshopWithId.name}" added successfully`);
-    setShowAddWorkshop(false);
+    closeForm();
   };
 
   // Real workshop data for all statuses
@@ -221,7 +233,7 @@ export function Workshops() {
         </div>
         <div className="flex gap-2">
           {canEditWorkshops && (
-            <button onClick={() => setShowAddWorkshop(true)} className="btn btn-primary">
+            <button onClick={openAddWorkshop} className="btn btn-primary">
               <Plus className="w-4 h-4" /> Add Workshop
             </button>
           )}
@@ -441,11 +453,11 @@ export function Workshops() {
       </div>
 
       {/* Edit/Add Workshop Modal */}
-      {(editingWorkshop !== null || showAddWorkshop) && (
+      {(isAddMode || isEditMode) && (
         <div className="modal-backdrop" onClick={e => {
           if (e.target === e.currentTarget) {
             setEditingWorkshop(null);
-            setShowAddWorkshop(false);
+            closeForm();
           }
         }}>
           <div className="modal-box max-w-2xl">
@@ -454,10 +466,7 @@ export function Workshops() {
                 {editingWorkshop !== null ? 'Edit Workshop' : 'Add New Workshop'}
               </h2>
               <button 
-                onClick={() => {
-                  setEditingWorkshop(null);
-                  setShowAddWorkshop(false);
-                }} 
+                onClick={closeForm}
                 className="btn-icon p-2"
               >
                 <X className="w-5 h-5" />
@@ -521,10 +530,7 @@ export function Workshops() {
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-border">
               <button 
-                onClick={() => {
-                  setEditingWorkshop(null);
-                  setShowAddWorkshop(false);
-                }} 
+                onClick={closeForm}
                 className="btn btn-muted"
               >
                 Cancel
