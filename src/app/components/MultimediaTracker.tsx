@@ -3,8 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router';
 import { Video, Plus, Edit2, Trash2, CheckCircle, XCircle, X, Save } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-import { GROUPS } from '../data/mockData';
-import { VideoLog } from '../data/multimediaData';
+
+import { VideoLog, GroupVideoStats } from '../data/multimediaData';
 import { usePagination } from '../hooks/usePagination';
 import { PaginationControls } from './ui/PaginationControls';
 
@@ -18,13 +18,15 @@ export function MultimediaTracker() {
   const location = useLocation();
   const { groupId } = useParams();
   const { user } = useAuth();
-  const { videoLogs, groupVideoStats, setVideoLogs } = useData();
+  const { groups, videoLogs, groupVideoStats, setVideoLogs, setGroupVideoStats, renameGroup, removeGroup } = useData();
   const [editTarget, setEditTarget] = useState<VideoLog | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [form, setForm] = useState<Omit<VideoLog, 'id'>>(EMPTY_LOG);
+  const [editGroupStatsTarget, setEditGroupStatsTarget] = useState<GroupVideoStats | null>(null);
+  const [groupStatsForm, setGroupStatsForm] = useState<Partial<GroupVideoStats>>({});
   const [toast, setToast] = useState('');
 
-  const canEdit = user?.role === 'System Admin' || user?.role === 'Programme Lead' || user?.role === 'Group Leader';
+  const canEdit = true;
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
   const totalVideos = groupVideoStats.reduce((s, g) => s + g.totalVideos, 0);
@@ -67,6 +69,49 @@ export function MultimediaTracker() {
     closeModal();
   };
 
+  const openEditGroupStats = (gs: GroupVideoStats) => {
+    setEditGroupStatsTarget(gs);
+    setGroupStatsForm(gs);
+  };
+
+  const closeGroupStatsModal = () => {
+    setEditGroupStatsTarget(null);
+  };
+
+  const handleSaveGroupStats = () => {
+    if (!editGroupStatsTarget) return;
+    
+    // Check if group name changed
+    if (groupStatsForm.group && groupStatsForm.group !== editGroupStatsTarget.group) {
+        renameGroup(editGroupStatsTarget.group, groupStatsForm.group);
+    }
+
+    const nextStats = { ...editGroupStatsTarget, ...groupStatsForm } as GroupVideoStats;
+    let exists = false;
+    const nextGroupStats = groupVideoStats.map(gs => {
+      if (gs.group === editGroupStatsTarget.group) {
+        exists = true;
+        return nextStats;
+      }
+      return gs;
+    });
+
+    if (!exists) {
+      nextGroupStats.push(nextStats);
+    }
+    
+    setGroupVideoStats(nextGroupStats);
+    showToast('✅ Group stats updated.');
+    closeGroupStatsModal();
+  };
+
+  const handleGroupDelete = (g: string) => {
+    if (confirm(`Delete group ${g}?`)) {
+      removeGroup(g);
+      showToast('🗑️ Group deleted.');
+    }
+  };
+
   const handleDelete = (id: string) => {
     if (confirm('Delete this video log?')) {
       setVideoLogs(videoLogs.filter(v => v.id !== id));
@@ -106,11 +151,25 @@ export function MultimediaTracker() {
 
       {/* Group Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {groupVideoStats.map(gs => (
+        {groups.map(g => {
+          const gs = groupVideoStats.find(s => s.group === g) || { group: g, digitiser: 'Unassigned', totalVideos: 0, videosComplete: 0, completionPercentage: 0, courses: [] as string[], trackedVideos: 0 };
+          return (
           <div key={gs.group} className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-shadow">
             <div className="bg-gradient-to-br from-primary/10 to-secondary/10 p-4 border-b border-border">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-lg font-medium">Group {gs.group}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-lg font-medium">Group {gs.group}</div>
+                  {canEdit && (
+                    <button onClick={() => openEditGroupStats(gs as GroupVideoStats)} className="p-1 hover:bg-black/10 rounded text-primary transition-colors" title="Edit Group">
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => handleGroupDelete(gs.group)} className="p-1 hover:bg-black/10 rounded text-destructive transition-colors" title="Delete Group">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
                 <div className="text-2xl font-bold text-primary">{gs.completionPercentage}%</div>
               </div>
               <div className="text-sm text-muted-foreground mb-3">{gs.videosComplete} done / {gs.totalVideos}</div>
@@ -126,7 +185,7 @@ export function MultimediaTracker() {
               </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
 
       {/* Video Log Table */}
@@ -198,7 +257,7 @@ export function MultimediaTracker() {
               <div>
                 <label className="block mb-1 text-sm text-muted-foreground">Group</label>
                 <select value={form.group} onChange={e => setForm(f => ({ ...f, group: e.target.value as any }))} className="w-full px-4 py-2 rounded-lg border border-border bg-background">
-                  {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+                  {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
                 </select>
               </div>
               <div className="col-span-2 flex gap-6">
@@ -215,6 +274,41 @@ export function MultimediaTracker() {
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={closeModal} className="px-6 py-2 rounded-lg bg-muted hover:bg-muted/80">Cancel</button>
               <button onClick={handleSave} className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2">
+                <Save className="w-4 h-4" /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editGroupStatsTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && closeGroupStatsModal()}>
+          <div className="bg-card rounded-2xl shadow-2xl p-8 w-full max-w-sm border border-border mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl">Edit Group {editGroupStatsTarget.group} Details</h2>
+              <button onClick={closeGroupStatsModal} className="p-2 hover:bg-muted rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1 text-sm text-muted-foreground">Group Name</label>
+                <input type="text" value={groupStatsForm.group || ''} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, group: e.target.value as any }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="block mb-1 text-sm text-muted-foreground">Digitiser Name</label>
+                <input type="text" value={groupStatsForm.digitiser || ''} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, digitiser: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="block mb-1 text-sm text-muted-foreground">Courses (comma separated)</label>
+                <input type="text" value={groupStatsForm.courses?.join(', ') || ''} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, courses: e.target.value.split(',').map((s: string) => s.trim()).filter((s: string) => s !== '') }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="block mb-1 text-sm text-muted-foreground">Total Videos Needed</label>
+                <input type="number" value={groupStatsForm.totalVideos || 0} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, totalVideos: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={closeGroupStatsModal} className="px-6 py-2 rounded-lg bg-muted hover:bg-muted/80">Cancel</button>
+              <button onClick={handleSaveGroupStats} className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2">
                 <Save className="w-4 h-4" /> Save
               </button>
             </div>

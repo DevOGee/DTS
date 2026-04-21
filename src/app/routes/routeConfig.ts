@@ -112,14 +112,14 @@ export const DYNAMIC_ROUTES: RouteConfig[] = [
   {
     path: '/groups/add-group',
     component: React.lazy(() => import('../components/Groups').then(module => ({ default: module.Groups }))),
-    permissions: ['create_groups'],
+    permissions: ['view_groups'],
     title: 'Add Group',
     description: 'Create new group'
   },
   {
-    path: '/groups/edit-group-:groupId',
+    path: '/groups/edit/:groupId',
     component: React.lazy(() => import('../components/Groups').then(module => ({ default: module.Groups }))),
-    permissions: ['edit_groups'],
+    permissions: ['view_groups'],
     title: 'Edit Group',
     description: 'Modify group details'
   },
@@ -207,14 +207,14 @@ export const DYNAMIC_ROUTES: RouteConfig[] = [
   {
     path: '/multimedia/log-video',
     component: React.lazy(() => import('../components/MultimediaTracker').then(module => ({ default: module.MultimediaTracker }))),
-    permissions: ['edit_multimedia'],
+    permissions: ['view_multimedia'],
     title: 'Log Video',
     description: 'Create multimedia log'
   },
   {
     path: '/multimedia/log-video/:groupId',
     component: React.lazy(() => import('../components/MultimediaTracker').then(module => ({ default: module.MultimediaTracker }))),
-    permissions: ['edit_multimedia'],
+    permissions: ['view_multimedia'],
     title: 'Log Video by Group',
     description: 'Create multimedia log for selected group'
   },

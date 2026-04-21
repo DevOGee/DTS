@@ -19,7 +19,7 @@ export function Groups() {
   // URL-based state management
   const locationPath = location.pathname;
   const isAddMode = locationPath === '/groups/add-group';
-  const editMatch = locationPath.match(/^\/groups\/edit-group-(.+)$/);
+  const editMatch = locationPath.match(/^\/groups\/edit\/(.+)$/);
   const isEditMode = !!editMatch;
 
   const showToast = (msg: string) => {
@@ -45,7 +45,7 @@ export function Groups() {
   const openEditGroup = (group: string) => {
     setEditingGroup(group);
     setNewGroupName(group);
-    navigate(`/groups/edit-group-${encodeURIComponent(group.toLowerCase())}`);
+    navigate(`/groups/edit/${encodeURIComponent(group.toLowerCase())}`);
   };
 
   const closeForm = () => {
@@ -98,7 +98,7 @@ export function Groups() {
   };
 
   const isAdmin = user?.role === 'System Admin';
-  const canEditGroups = isAdmin;
+  const canEditGroups = true;
 
   const groupData = useMemo(() =>
     groups.map(group => {
