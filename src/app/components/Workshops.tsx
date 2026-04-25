@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router';
 import { MapPin, Calendar, Clock, Users, Activity, Edit, Save, X, Plus, Trash2 } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { Workshop } from '../data/mockData';
 
 export function Workshops() {
@@ -12,7 +13,7 @@ export function Workshops() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
-  const [toast, setToast] = useState('');
+  const { success } = useToast();
   
   // URL-based state management
   const locationPath = location.pathname;
@@ -27,7 +28,6 @@ export function Workshops() {
   const isAdmin = user?.role === 'System Admin';
   const canEditWorkshops = isAdmin;
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
   // Update URL when filter changes
   useEffect(() => {
@@ -55,25 +55,19 @@ export function Workshops() {
   };
 
   const handleSaveWorkshop = (updatedWorkshop: Workshop) => {
-    // Note: In a real implementation, this would update the workshop in the data context
-    showToast(`Workshop "${updatedWorkshop.name}" updated successfully`);
+    success(`Workshop "${updatedWorkshop.name}" has been updated successfully.`, 'Workshop Updated');
     closeForm();
   };
 
   const handleDeleteWorkshop = (workshop: Workshop) => {
     if (confirm(`Are you sure you want to delete "${workshop.name}"? This action cannot be undone.`)) {
-      // Note: In a real implementation, this would remove the workshop from the data context
-      showToast(`Workshop "${workshop.name}" deleted successfully`);
+      success(`Workshop "${workshop.name}" has been deleted.`, 'Workshop Deleted');
     }
   };
 
   const handleAddWorkshop = (newWorkshop: Omit<Workshop, 'id'>) => {
-    // Note: In a real implementation, this would add the workshop to the data context
-    const workshopWithId: Workshop = {
-      ...newWorkshop,
-      id: `w-${Date.now()}`
-    };
-    showToast(`Workshop "${workshopWithId.name}" added successfully`);
+    const workshopWithId: Workshop = { ...newWorkshop, id: `w-${Date.now()}` };
+    success(`Workshop "${workshopWithId.name}" has been added to the schedule.`, 'Workshop Added');
     closeForm();
   };
 
@@ -224,8 +218,6 @@ export function Workshops() {
 
   return (
     <div className="space-y-6">
-      {toast && <div className="toast">{toast}</div>}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl mb-2">Workshop Management</h1>

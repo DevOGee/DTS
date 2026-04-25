@@ -315,7 +315,7 @@ export function useOptimisticMutation<TData, TVariables, TError = Error>(
   }
 ) {
   const queryClient = useQueryClient();
-  const { showToast } = useData();
+  const { showToast } = useToast();
   
   return useMutation({
     mutationFn,
@@ -325,8 +325,9 @@ export function useOptimisticMutation<TData, TVariables, TError = Error>(
       const previousData = queryClient.getQueryData(queryKey);
       
       if (options?.updateFn) {
-        queryClient.setQueryData(queryKey, (old: TData | undefined) => 
-          options.updateFn(old, variables)
+        const updateFn = options.updateFn;
+        queryClient.setQueryData(queryKey, (old: TData | undefined) =>
+          updateFn(old, variables)
         );
       }
       

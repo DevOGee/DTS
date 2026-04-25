@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CheckCircle2, Circle, Plus, Trash2, X, Save, Rocket, Flag } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { ChecklistItem } from '../data/checklistData';
 
 export function PhaseChecklist() {
@@ -9,10 +10,9 @@ export function PhaseChecklist() {
   const { checklistItems, updateChecklistItem, setChecklistItems } = useData();
   const [adding, setAdding] = useState<{ category: 'pre-flight' | 'close-out' } | null>(null);
   const [newForm, setNewForm] = useState({ title: '', description: '' });
-  const [toast, setToast] = useState('');
 
-  const canEdit = user?.role !== 'Viewer';
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+  const canEdit = user?.role !== 'Viewer/Digitiser';
+  const { success, error, warning } = useToast();
 
   const toggle = (id: string) => {
     const item = checklistItems.find(i => i.id === id);
@@ -20,14 +20,15 @@ export function PhaseChecklist() {
   };
 
   const deleteItem = (id: string) => {
+    const item = checklistItems.find(i => i.id === id);
     if (confirm('Delete this checklist item?')) {
       setChecklistItems(checklistItems.filter(i => i.id !== id));
-      showToast('🗑️ Item deleted.');
+      warning(`"${item?.title ?? 'Item'}" has been removed from the checklist.`, 'Item Deleted');
     }
   };
 
   const addItem = () => {
-    if (!newForm.title) { showToast('⚠️ Title is required.'); return; }
+    if (!newForm.title) { error('A task title is required before adding.', 'Validation Error'); return; }
     const item: ChecklistItem = {
       id: `item-${Date.now()}`,
       title: newForm.title,
@@ -38,7 +39,7 @@ export function PhaseChecklist() {
     setChecklistItems([...checklistItems, item]);
     setAdding(null);
     setNewForm({ title: '', description: '' });
-    showToast('✅ Item added.');
+    success(`"${item.title}" added to the ${adding!.category === 'pre-flight' ? 'Pre-Flight' : 'Close-Out'} checklist.`, 'Task Added');
   };
 
   const preItems = checklistItems.filter(i => i.category === 'pre-flight');
@@ -90,8 +91,6 @@ export function PhaseChecklist() {
 
   return (
     <div className="space-y-6">
-      {toast && <div className="fixed top-6 right-6 z-50 bg-card border border-border shadow-xl rounded-xl px-6 py-4 text-sm font-medium">{toast}</div>}
-
       <div>
         <h1 className="text-4xl mb-2">Phase Checklist</h1>
         <p className="text-muted-foreground">Track workshop preparation and close-out tasks</p>

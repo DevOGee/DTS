@@ -3,7 +3,8 @@ import { useNavigate, useLocation, useParams } from 'react-router';
 import { Search, Edit, Trash2, Plus, ExternalLink, X, Save, BookOpen, Target, TrendingUp, CheckCircle2, Upload, Download, FileText, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-import { GROUPS, Group, mockProgrammes, Course } from '../data/mockData';
+import { useToast } from '../contexts/ToastContext';
+import { Group, mockProgrammes, Course } from '../data/mockData';
 import { PaginationControls } from './ui/PaginationControls';
 import { usePagination } from '../hooks/usePagination';
 
@@ -15,7 +16,7 @@ const EMPTY: Omit<Course, 'id'> = {
 
 export function Courses() {
   const { user } = useAuth();
-  const { courses, addCourse, updateCourse, removeCourse } = useData();
+  const { groups, courses, addCourse, updateCourse, removeCourse } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -25,7 +26,6 @@ export function Courses() {
   const [filterLevel, setFilterLevel] = useState('all');
   const [filterType, setFilterType] = useState<'all' | 'Technical' | 'Non-Technical'>('all');
   const [form, setForm] = useState<Omit<Course, 'id'>>(EMPTY);
-  const [toast, setToast] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,7 +61,7 @@ export function Courses() {
   const techCount = courses.filter(c => c.courseType === 'Technical').length;
   const nonTechCount = courses.filter(c => c.courseType === 'Non-Technical').length;
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+  const { success, error, warning } = useToast();
 
   // URL-based navigation functions
   const openAdd = () => navigate('/courses/add-course');
@@ -114,7 +114,7 @@ export function Courses() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Courses exported successfully!');
+    success(`${filtered.length} course(s) exported to CSV.`, 'Export Complete');
   };
 
   // Download Template Function
@@ -139,7 +139,7 @@ export function Courses() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Template downloaded successfully!');
+    success('Course CSV template downloaded.', 'Template Downloaded');
   };
 
   // CSV Upload Function
@@ -195,7 +195,7 @@ export function Courses() {
           }
 
           // Validate group
-          if (!GROUPS.includes(rowData['Assigned Group*'])) {
+          if (!groups.includes(rowData['Assigned Group*'])) {
             errors.push(`Row ${i + 1}: Invalid group "${rowData['Assigned Group*']}"`);
             continue;
           }
@@ -233,10 +233,8 @@ export function Courses() {
         for (const course of newCourses) {
           addCourse(course);
         }
-        showToast(`Successfully imported ${newCourses.length} courses!`);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+        success(`${newCourses.length} course(s) imported successfully.`, 'Import Complete');
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     } catch (error) {
       setUploadErrors([`Error reading file: ${error}`]);
@@ -246,22 +244,22 @@ export function Courses() {
   };
 
   const handleSave = () => {
-    if (!form.code.trim() || !form.name.trim()) { showToast('Course code and name are required.'); return; }
+    if (!form.code.trim() || !form.name.trim()) { error('Course Code and Course Name are required fields.', 'Validation Error'); return; }
     if (isAddMode) {
       addCourse({ ...form, id: `c-${Date.now()}` });
-      showToast('Course added successfully.');
+      success(`Course "${form.name}" (${form.code}) added to Group ${form.assignedGroup}.`, 'Course Added');
     } else if (isEditMode) {
       const courseId = locationPath.split('/')[3];
       updateCourse({ ...form, id: courseId });
-      showToast('Course updated successfully.');
+      success(`Course "${form.name}" has been updated.`, 'Course Updated');
     }
     closeForm();
   };
 
   const handleDelete = (c: Course) => {
-    if (confirm(`Delete "${c.name}"?`)) { 
-      removeCourse(c.id, user?.name || 'Unknown'); 
-      showToast('Course moved to recycle bin.'); 
+    if (confirm(`Delete "${c.name}"?`)) {
+      removeCourse(c.id, user?.name || 'Unknown');
+      warning(`"${c.name}" has been moved to the Recycle Bin.`, 'Course Deleted');
     }
   };
 
@@ -270,8 +268,6 @@ export function Courses() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {toast && <div className="toast">{toast}</div>}
-
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -326,17 +322,26 @@ export function Courses() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: BookOpen, label: 'Total Courses', value: courses.length, color: 'text-primary', bg: 'bg-primary/10' },
-          { icon: Target, label: 'Total Modules', value: totalModules, color: 'text-secondary', bg: 'bg-secondary/10' },
-          { icon: TrendingUp, label: 'Technical', value: techCount, color: 'text-chart-5', bg: 'bg-chart-5/10' },
-          { icon: CheckCircle2, label: 'Non-Technical', value: nonTechCount, color: 'text-chart-4', bg: 'bg-chart-4/10' },
-        ].map(({ icon: Icon, label, value, color, bg }) => (
-          <div key={label} className="bg-card rounded-2xl p-5 border border-border card-hover">
-            <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
-              <Icon className={`w-5 h-5 ${color}`} />
+          { icon: BookOpen, label: 'Total Courses', value: courses.length, color: 'text-blue-600', gradient: 'from-blue-500/10 to-indigo-500/10', borderHover: 'hover:border-blue-300/50' },
+          { icon: Target, label: 'Total Modules', value: totalModules, color: 'text-teal-600', gradient: 'from-teal-500/10 to-emerald-500/10', borderHover: 'hover:border-teal-300/50' },
+          { icon: TrendingUp, label: 'Technical', value: techCount, color: 'text-amber-600', gradient: 'from-amber-500/10 to-orange-500/10', borderHover: 'hover:border-amber-300/50' },
+          { icon: CheckCircle2, label: 'Non-Technical', value: nonTechCount, color: 'text-purple-600', gradient: 'from-purple-500/10 to-fuchsia-500/10', borderHover: 'hover:border-purple-300/50' },
+        ].map(({ icon: Icon, label, value, color, gradient, borderHover }) => (
+          <div key={label} className={`relative group bg-card/40 backdrop-blur-xl rounded-2xl p-6 border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${borderHover} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between min-h-[140px]`}>
+            {/* Subtle Gradient Overlay */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0`} />
+            
+            <div className="relative z-10">
+              <div className="flex items-start justify-between mb-4">
+                <div className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{label}</div>
+                <div className="rounded-xl border border-white/20 bg-background/50 shadow-sm p-2 group-hover:scale-110 transition-transform duration-300">
+                  <Icon className={`w-5 h-5 ${color}`} />
+                </div>
+              </div>
+              <div>
+                <div className="text-4xl font-light tracking-tight mb-1">{value}</div>
+              </div>
             </div>
-            <div className="stat-number">{value}</div>
-            <div className="text-xs text-muted-foreground mt-1">{label}</div>
           </div>
         ))}
       </div>
@@ -363,7 +368,7 @@ export function Courses() {
             </div>
             <select className="field sm:w-36" value={filterGroup} onChange={e => setFilterGroup(e.target.value as any)}>
               <option value="all">All Groups</option>
-              {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+              {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
             </select>
             <select className="field sm:w-36" value={filterType} onChange={e => setFilterType(e.target.value as any)}>
               <option value="all">All Types</option>
@@ -491,7 +496,7 @@ export function Courses() {
               <div>
                 <label className="block mb-1.5 text-sm font-medium">Assigned Group *</label>
                 <select className="field" value={form.assignedGroup} onChange={set('assignedGroup')}>
-                  {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+                  {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
                 </select>
               </div>
               <div>

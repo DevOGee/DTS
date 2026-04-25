@@ -60,21 +60,45 @@ export const DYNAMIC_ROUTES: RouteConfig[] = [
   // Workshop routes
   {
     path: '/workshops',
-    component: React.lazy(() => import('../components/Workshops').then(module => ({ default: module.Workshops }))),
+    component: React.lazy(() => import('../components/WorkshopsDashboard').then(module => ({ default: module.WorkshopsDashboard }))),
     permissions: ['view_workshops'],
     title: 'Workshops',
     description: 'Workshop management and scheduling'
   },
   {
+    path: '/workshops/active',
+    component: React.lazy(() => import('../components/WorkshopsDashboard').then(module => ({ default: module.WorkshopsDashboard }))),
+    permissions: ['view_workshops'],
+    title: 'Active Workshops',
+  },
+  {
+    path: '/workshops/upcoming',
+    component: React.lazy(() => import('../components/WorkshopsDashboard').then(module => ({ default: module.WorkshopsDashboard }))),
+    permissions: ['view_workshops'],
+    title: 'Upcoming Workshops',
+  },
+  {
+    path: '/workshops/completed',
+    component: React.lazy(() => import('../components/WorkshopsDashboard').then(module => ({ default: module.WorkshopsDashboard }))),
+    permissions: ['view_workshops'],
+    title: 'Completed Workshops',
+  },
+  {
+    path: '/workshops/all',
+    component: React.lazy(() => import('../components/WorkshopsDashboard').then(module => ({ default: module.WorkshopsDashboard }))),
+    permissions: ['view_workshops'],
+    title: 'All Workshops',
+  },
+  {
     path: '/workshops/add-workshop',
-    component: React.lazy(() => import('../components/Workshops').then(module => ({ default: module.Workshops }))),
+    component: React.lazy(() => import('../components/WorkshopsDashboard').then(module => ({ default: module.WorkshopsDashboard }))),
     permissions: ['create_workshops'],
     title: 'Add Workshop',
     description: 'Schedule new workshop'
   },
   {
     path: '/workshops/edit/:id',
-    component: React.lazy(() => import('../components/Workshops').then(module => ({ default: module.Workshops }))),
+    component: React.lazy(() => import('../components/WorkshopsDashboard').then(module => ({ default: module.WorkshopsDashboard }))),
     permissions: ['create_workshops'],
     title: 'Edit Workshop',
     description: 'Modify workshop details'
@@ -217,6 +241,13 @@ export const DYNAMIC_ROUTES: RouteConfig[] = [
     permissions: ['view_multimedia'],
     title: 'Log Video by Group',
     description: 'Create multimedia log for selected group'
+  },
+  {
+    path: '/multimedia/edit-group/:groupId',
+    component: React.lazy(() => import('../components/MultimediaTracker').then(module => ({ default: module.MultimediaTracker }))),
+    permissions: ['view_multimedia'],
+    title: 'Edit Group Stats',
+    description: 'Edit multimedia statistics for group'
   },
   {
     path: '/reports',

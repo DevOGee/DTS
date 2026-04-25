@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router';
 import { Video, Plus, Edit2, Trash2, CheckCircle, XCircle, X, Save } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-
+import { useToast } from '../contexts/ToastContext';
 import { VideoLog, GroupVideoStats } from '../data/multimediaData';
 import { usePagination } from '../hooks/usePagination';
 import { PaginationControls } from './ui/PaginationControls';
@@ -24,10 +24,8 @@ export function MultimediaTracker() {
   const [form, setForm] = useState<Omit<VideoLog, 'id'>>(EMPTY_LOG);
   const [editGroupStatsTarget, setEditGroupStatsTarget] = useState<GroupVideoStats | null>(null);
   const [groupStatsForm, setGroupStatsForm] = useState<Partial<GroupVideoStats>>({});
-  const [toast, setToast] = useState('');
-
   const canEdit = true;
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+  const { success, error, warning } = useToast();
 
   const totalVideos = groupVideoStats.reduce((s, g) => s + g.totalVideos, 0);
   const completedVideos = groupVideoStats.reduce((s, g) => s + g.videosComplete, 0);
@@ -38,7 +36,20 @@ export function MultimediaTracker() {
   );
 
   const isLogMode = location.pathname.startsWith('/multimedia/log-video');
+  const isEditGroupMode = location.pathname.startsWith('/multimedia/edit-group');
   const selectedGroup = groupId ? decodeURIComponent(groupId).replace(/^group-/, '').toUpperCase() : null;
+
+  useEffect(() => {
+    if (isEditGroupMode && selectedGroup) {
+      const gs = groupVideoStats.find(s => s.group === selectedGroup);
+      if (gs) {
+        setEditGroupStatsTarget(gs);
+        setGroupStatsForm(gs);
+      }
+    } else if (!isLogMode) {
+      setEditGroupStatsTarget(null);
+    }
+  }, [isEditGroupMode, selectedGroup, groupVideoStats, isLogMode]);
 
   useEffect(() => {
     if (isLogMode && !editTarget) {
@@ -57,25 +68,25 @@ export function MultimediaTracker() {
   const closeModal = () => { setIsNew(false); setEditTarget(null); navigate('/multimedia'); };
 
   const handleSave = () => {
-    if (!form.courseCode || !form.title) { showToast('⚠️ Course code and title are required.'); return; }
+    if (!form.courseCode || !form.title) { error('Course code and title are both required.', 'Validation Error'); return; }
     const status: VideoLog['status'] = form.recorded && form.edited ? 'Complete' : form.recorded ? 'In Progress' : 'Pending';
     if (isNew) {
       setVideoLogs([...videoLogs, { ...form, status, id: `v-${Date.now()}` }]);
-      showToast('✅ Video log added.');
+      success(`Video "${form.title}" for Group ${form.group} has been logged (${status}).`, 'Video Log Added');
     } else if (editTarget) {
       setVideoLogs(videoLogs.map(v => v.id === editTarget.id ? { ...form, status, id: editTarget.id } : v));
-      showToast('✅ Video log updated.');
+      success(`Video log "${form.title}" has been updated — Status: ${status}.`, 'Video Log Updated');
     }
     closeModal();
   };
 
   const openEditGroupStats = (gs: GroupVideoStats) => {
-    setEditGroupStatsTarget(gs);
-    setGroupStatsForm(gs);
+    navigate(`/multimedia/edit-group/group-${gs.group.toLowerCase()}`);
   };
 
   const closeGroupStatsModal = () => {
     setEditGroupStatsTarget(null);
+    navigate('/multimedia');
   };
 
   const handleSaveGroupStats = () => {
@@ -101,28 +112,26 @@ export function MultimediaTracker() {
     }
     
     setGroupVideoStats(nextGroupStats);
-    showToast('✅ Group stats updated.');
+    success(`Group ${editGroupStatsTarget.group} stats updated — ${nextStats.videosComplete}/${nextStats.totalVideos} videos complete.`, 'Stats Updated');
     closeGroupStatsModal();
   };
 
   const handleGroupDelete = (g: string) => {
     if (confirm(`Delete group ${g}?`)) {
       removeGroup(g);
-      showToast('🗑️ Group deleted.');
+      warning(`Group ${g} has been removed from Multimedia Tracker.`, 'Group Deleted');
     }
   };
 
   const handleDelete = (id: string) => {
     if (confirm('Delete this video log?')) {
       setVideoLogs(videoLogs.filter(v => v.id !== id));
-      showToast('🗑️ Deleted.');
+      warning('The video log entry has been permanently deleted.', 'Log Deleted');
     }
   };
 
   return (
     <div className="space-y-6">
-      {toast && <div className="fixed top-6 right-6 z-50 bg-card border border-border shadow-xl rounded-xl px-6 py-4 text-sm font-medium">{toast}</div>}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl mb-2">Multimedia Tracker</h1>
@@ -137,7 +146,7 @@ export function MultimediaTracker() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Videos', value: totalVideos, color: 'text-primary' },
+          { label: 'Total Needed', value: totalVideos, color: 'text-primary' },
           { label: 'Completed', value: completedVideos, color: 'text-chart-3' },
           { label: 'In Progress', value: videoLogs.filter(v => v.status === 'In Progress').length, color: 'text-chart-4' },
           { label: 'Logs Recorded', value: videoLogs.length, color: 'text-secondary' },
@@ -164,17 +173,14 @@ export function MultimediaTracker() {
                       <Edit2 className="w-3 h-3" />
                     </button>
                   )}
-                  {canEdit && (
-                    <button onClick={() => handleGroupDelete(gs.group)} className="p-1 hover:bg-black/10 rounded text-destructive transition-colors" title="Delete Group">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
                 </div>
-                <div className="text-2xl font-bold text-primary">{gs.completionPercentage}%</div>
+                <div className="text-2xl font-bold text-primary">
+                  {gs.totalVideos > 0 ? Math.round((gs.videosComplete / gs.totalVideos) * 100) : 0}%
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground mb-3">{gs.videosComplete} done / {gs.totalVideos}</div>
+              <div className="text-sm text-muted-foreground mb-3">{gs.videosComplete} done / {gs.totalVideos} needed</div>
               <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                <div className="bg-gradient-to-r from-primary to-secondary h-full" style={{ width: `${gs.completionPercentage}%` }} />
+                <div className="bg-gradient-to-r from-primary to-secondary h-full" style={{ width: `${gs.totalVideos > 0 ? (gs.videosComplete / gs.totalVideos) * 100 : 0}%` }} />
               </div>
             </div>
             <div className="p-4">
@@ -290,20 +296,16 @@ export function MultimediaTracker() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block mb-1 text-sm text-muted-foreground">Group Name</label>
-                <input type="text" value={groupStatsForm.group || ''} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, group: e.target.value as any }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
+                <label className="block mb-1 text-sm text-muted-foreground">Total Videos Needed</label>
+                <input type="number" value={groupStatsForm.totalVideos || 0} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, totalVideos: Number(e.target.value) }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
               <div>
-                <label className="block mb-1 text-sm text-muted-foreground">Digitiser Name</label>
-                <input type="text" value={groupStatsForm.digitiser || ''} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, digitiser: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
+                <label className="block mb-1 text-sm text-muted-foreground">Videos Completed</label>
+                <input type="number" value={groupStatsForm.videosComplete || 0} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, videosComplete: Number(e.target.value) }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
               <div>
                 <label className="block mb-1 text-sm text-muted-foreground">Courses (comma separated)</label>
                 <input type="text" value={groupStatsForm.courses?.join(', ') || ''} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, courses: e.target.value.split(',').map((s: string) => s.trim()).filter((s: string) => s !== '') }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-              <div>
-                <label className="block mb-1 text-sm text-muted-foreground">Total Videos Needed</label>
-                <input type="number" value={groupStatsForm.totalVideos || 0} onChange={e => setGroupStatsForm((f: Partial<GroupVideoStats>) => ({ ...f, totalVideos: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">

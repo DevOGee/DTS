@@ -2,11 +2,13 @@ import { useState, useMemo } from 'react';
 import { CheckCircle2, XCircle, Download, UserCheck, X, Save } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-import { GROUPS, Group } from '../data/mockData';
+import { useToast } from '../contexts/ToastContext';
+import { Group } from '../data/mockData';
 
 export function Attendance() {
   const { user } = useAuth();
-  const { participants, attendance, workshop, toggleAttendance, markAttendanceDayPresent } = useData();
+  const { groups, participants, attendance, workshop, toggleAttendance, markAttendanceDayPresent } = useData();
+  const { success, info } = useToast();
   const [selectedDay, setSelectedDay] = useState(1);
   const [filterGroup, setFilterGroup] = useState<Group | 'all'>('all');
   const [editingNote, setEditingNote] = useState<{ pid: string; day: number } | null>(null);
@@ -47,6 +49,7 @@ export function Attendance() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a'); a.href = url; a.download = 'attendance.csv'; a.click();
     URL.revokeObjectURL(url);
+    success(`Attendance exported — ${participants.length} participant(s), ${workshop.numberOfDays} day(s).`, 'Export Complete');
   };
 
   return (
@@ -65,7 +68,7 @@ export function Attendance() {
         {[
           { label: 'Overall Rate', value: `${overallRate}%`, sub: `${overallPresent}/${overallTotal} records`, color: 'text-chart-3', bg: 'bg-chart-3/10' },
           { label: 'Day Rate', value: `${cur?.pct ?? 0}%`, sub: `Day ${selectedDay}: ${cur?.present}/${cur?.total}`, color: 'text-primary', bg: 'bg-primary/10' },
-          { label: 'Participants', value: participants.length, sub: `${GROUPS.length} groups`, color: 'text-secondary', bg: 'bg-secondary/10' },
+          { label: 'Participants', value: participants.length, sub: `${groups.length} groups`, color: 'text-secondary', bg: 'bg-secondary/10' },
           { label: 'Workshop Days', value: workshop.numberOfDays, sub: 'Total days', color: 'text-chart-4', bg: 'bg-chart-4/10' },
         ].map(({ label, value, sub, color, bg }) => (
           <div key={label} className="bg-card rounded-2xl p-5 border border-border card-hover">
@@ -85,10 +88,16 @@ export function Attendance() {
           <div className="flex items-center gap-3 flex-wrap">
             <select className="field sm:w-36" value={filterGroup} onChange={e => setFilterGroup(e.target.value as any)}>
               <option value="all">All Groups</option>
-              {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+              {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
             </select>
             {canMarkAll && (
-              <button onClick={() => markAttendanceDayPresent(selectedDay, filterGroup)} className="btn btn-secondary btn-sm">
+              <button onClick={() => {
+                markAttendanceDayPresent(selectedDay, filterGroup);
+                info(
+                  `All ${filterGroup === 'all' ? '' : `Group ${filterGroup} `}participants marked Present for Day ${selectedDay}.`,
+                  'Attendance Marked'
+                );
+              }} className="btn btn-secondary btn-sm">
                 ✓ Mark All Present
               </button>
             )}

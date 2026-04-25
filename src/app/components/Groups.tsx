@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router';
 import { Users, TrendingUp, BookOpen, Edit, Save, X, Plus, Trash2 } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { PaginationControls } from './ui/PaginationControls';
 import { usePagination } from '../hooks/usePagination';
 
@@ -14,18 +15,13 @@ export function Groups() {
 
   const [newGroupName, setNewGroupName] = useState('');
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
-  const [toast, setToast] = useState('');
+  const { success, error } = useToast();
 
   // URL-based state management
   const locationPath = location.pathname;
   const isAddMode = locationPath === '/groups/add-group';
   const editMatch = locationPath.match(/^\/groups\/edit\/(.+)$/);
   const isEditMode = !!editMatch;
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
 
   useEffect(() => {
     if (editMatch?.[1]) {
@@ -56,32 +52,23 @@ export function Groups() {
 
   const handleAddGroup = () => {
     const trimmed = newGroupName.trim().toUpperCase();
-    if (!trimmed) {
-      showToast('Group name cannot be empty');
-      return;
-    }
-    if (groups.includes(trimmed)) {
-      showToast(`Group "${trimmed}" already exists`);
-      return;
-    }
+    if (!trimmed) { error('Group name cannot be empty.', 'Validation Error'); return; }
+    if (groups.includes(trimmed)) { error(`Group "${trimmed}" already exists.`, 'Duplicate Group'); return; }
     addGroup(trimmed);
-    showToast(`Group "${trimmed}" added successfully`);
+    success(`Group "${trimmed}" has been created.`, 'Group Added');
     closeForm();
   };
 
   const handleSaveGroup = () => {
     const trimmed = newGroupName.trim().toUpperCase();
-    if (!trimmed) {
-      showToast('Group name cannot be empty');
-      return;
-    }
+    if (!trimmed) { error('Group name cannot be empty.', 'Validation Error'); return; }
     if (editingGroup && trimmed !== editingGroup && groups.includes(trimmed)) {
-      showToast(`Group "${trimmed}" already exists`);
+      error(`Group "${trimmed}" already exists.`, 'Duplicate Group');
       return;
     }
     if (editingGroup) {
       renameGroup(editingGroup, trimmed);
-      showToast(`Group "${editingGroup}" renamed to "${trimmed}"`);
+      success(`Group "${editingGroup}" has been renamed to "${trimmed}".`, 'Group Renamed');
     }
     closeForm();
   };
@@ -89,11 +76,10 @@ export function Groups() {
   const handleDeleteGroup = (group: string) => {
     const participantCount = participants.filter(p => p.group === group).length;
     const courseCount = courses.filter(c => c.assignedGroup === group).length;
-    const message =
-      `Delete Group ${group}? This will also remove ${courseCount} course(s) and ${participantCount} participant(s) assigned to it.`;
+    const message = `Delete Group ${group}? This will also remove ${courseCount} course(s) and ${participantCount} participant(s) assigned to it.`;
     if (confirm(message)) {
-      removeGroup(group);
-      showToast(`Group ${group} deleted successfully`);
+      removeGroup(group, user?.name);
+      success(`Group ${group} and its ${courseCount} course(s) / ${participantCount} participant(s) have been moved to the Recycle Bin.`, 'Group Deleted');
     }
   };
 
@@ -125,8 +111,6 @@ export function Groups() {
 
   return (
     <div className="space-y-6">
-      {toast && <div className="toast">{toast}</div>}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl mb-2">Group Management</h1>

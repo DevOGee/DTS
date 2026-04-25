@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router';
 import { Search, Plus, Edit, Trash2, Users, DollarSign, X, Save, Upload, Download, FileText, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-import { GROUPS, Group, Participant } from '../data/mockData';
+import { useToast } from '../contexts/ToastContext';
+import { Group, Participant } from '../data/mockData';
 import { PaginationControls } from './ui/PaginationControls';
 import { usePagination } from '../hooks/usePagination';
 
@@ -13,7 +14,7 @@ const EMPTY: Omit<Participant, 'id'> = {
 
 export function Participants() {
   const { user } = useAuth();
-  const { participants, baseDailyRate, dsaRates, addParticipant, updateParticipant, removeParticipant } = useData();
+  const { groups, participants, baseDailyRate, dsaRates, addParticipant, updateParticipant, removeParticipant } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useState('');
@@ -21,7 +22,6 @@ export function Participants() {
   const [filterDSA, setFilterDSA] = useState<'all' | 'In-County' | 'Out-County'>('all');
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [form, setForm] = useState<Omit<Participant, 'id'>>(EMPTY);
-  const [toast, setToast] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,8 +35,7 @@ export function Participants() {
   const canAdd = user?.role !== 'Viewer/Digitiser';
   const canEdit = (g: Group) => user?.role === 'System Admin' || user?.role === 'Programme Lead' || (user?.role === 'Group Leader' && user.group === g);
   const canDelete = () => user?.role === 'System Admin';
-
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+  const { success, error, warning } = useToast();
   const calcDSA = (p: Omit<Participant, 'id'>) => Math.round(p.daysAttending * baseDailyRate * dsaRates[p.dsaType]);
 
   // CSV Export Function
@@ -66,7 +65,7 @@ export function Participants() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Participants exported successfully!');
+    success(`${filtered.length} participant(s) exported successfully.`, 'Export Complete');
   };
 
   // Download Template Function
@@ -91,7 +90,7 @@ export function Participants() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Template downloaded successfully!');
+    success('Participant CSV template downloaded.', 'Template Downloaded');
   };
 
   // CSV Upload Function
@@ -147,7 +146,7 @@ export function Participants() {
           }
 
           // Validate group
-          if (!GROUPS.includes(rowData['Group*'])) {
+          if (!groups.includes(rowData['Group*'])) {
             errors.push(`Row ${i + 1}: Invalid group "${rowData['Group*']}"`);
             continue;
           }
@@ -188,10 +187,8 @@ export function Participants() {
         for (const participant of newParticipants) {
           addParticipant(participant);
         }
-        showToast(`Successfully imported ${newParticipants.length} participants!`);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+        success(`${newParticipants.length} participant(s) imported successfully.`, 'Import Complete');
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     } catch (error) {
       setUploadErrors([`Error reading file: ${error}`]);
@@ -234,21 +231,22 @@ export function Participants() {
   }, [locationPath, participants, isAddMode, isEditMode]);
 
   const handleSave = () => {
-    if (!form.name.trim() || !form.email.trim()) { showToast('⚠️ Name and email are required.'); return; }
+    if (!form.name.trim() || !form.email.trim()) { error('Name and email are required fields.', 'Validation Error'); return; }
     if (isAddMode) {
       addParticipant({ ...form, id: `p-${Date.now()}` });
-      showToast('✅ Participant added.');
+      success(`${form.name} has been added as a participant in Group ${form.group}.`, 'Participant Added');
     } else if (isEditMode) {
       const participantId = locationPath.split('/')[3];
       updateParticipant({ ...form, id: participantId });
-      showToast('✅ Participant updated.');
+      success(`${form.name}'s details have been updated.`, 'Participant Updated');
     }
     closeForm();
   };
 
   const handleDelete = (p: Participant) => {
     if (confirm(`Remove "${p.name}"? Their attendance and payment records will also be removed.`)) {
-      removeParticipant(p.id); showToast('🗑️ Participant removed.');
+      removeParticipant(p.id);
+      warning(`${p.name} and all associated records have been removed.`, 'Participant Removed');
     }
   };
 
@@ -257,8 +255,6 @@ export function Participants() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {toast && <div className="toast">{toast}</div>}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex-1">
@@ -313,17 +309,27 @@ export function Participants() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: Users, label: 'Total Participants', value: participants.length, color: 'text-primary', bg: 'bg-primary/10' },
-          { icon: DollarSign, label: 'In-County', value: inCounty, sub: `${dsaRates['In-County'] * 100}% rate`, color: 'text-chart-3', bg: 'bg-chart-3/10' },
-          { icon: DollarSign, label: 'Out-County', value: outCounty, sub: `${dsaRates['Out-County'] * 100}% rate`, color: 'text-secondary', bg: 'bg-secondary/10' },
-          { icon: DollarSign, label: 'Total DSA', value: `KES ${totalDSA.toLocaleString()}`, color: 'text-chart-5', bg: 'bg-chart-5/10' },
-        ].map(({ icon: Icon, label, value, sub, color, bg }) => (
-          <div key={label} className="bg-card rounded-2xl p-5 border border-border card-hover">
-            <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
-              <Icon className={`w-5 h-5 ${color}`} />
+          { icon: Users, label: 'Total Participants', value: participants.length, color: 'text-blue-600', gradient: 'from-blue-500/10 to-cyan-500/10', borderHover: 'hover:border-blue-300/50' },
+          { icon: DollarSign, label: 'In-County', value: inCounty, sub: `${dsaRates['In-County'] * 100}% rate`, color: 'text-teal-600', gradient: 'from-teal-500/10 to-emerald-500/10', borderHover: 'hover:border-teal-300/50' },
+          { icon: DollarSign, label: 'Out-County', value: outCounty, sub: `${dsaRates['Out-County'] * 100}% rate`, color: 'text-amber-600', gradient: 'from-amber-500/10 to-orange-500/10', borderHover: 'hover:border-amber-300/50' },
+          { icon: DollarSign, label: 'Total DSA', value: `KES ${totalDSA.toLocaleString()}`, color: 'text-purple-600', gradient: 'from-purple-500/10 to-fuchsia-500/10', borderHover: 'hover:border-purple-300/50' },
+        ].map(({ icon: Icon, label, value, sub, color, gradient, borderHover }) => (
+          <div key={label} className={`relative group bg-card/40 backdrop-blur-xl rounded-2xl p-6 border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${borderHover} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between min-h-[140px]`}>
+            {/* Subtle Gradient Overlay */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0`} />
+            
+            <div className="relative z-10">
+              <div className="flex items-start justify-between mb-4">
+                <div className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{label}</div>
+                <div className="rounded-xl border border-white/20 bg-background/50 shadow-sm p-2 group-hover:scale-110 transition-transform duration-300">
+                  <Icon className={`w-5 h-5 ${color}`} />
+                </div>
+              </div>
+              <div>
+                <div className="text-4xl font-light tracking-tight mb-1">{value}</div>
+                {sub && <div className={`text-sm font-medium ${color.replace('text-', 'text-').replace('-600', '-500')} opacity-90`}>{sub}</div>}
+              </div>
             </div>
-            <div className={`stat-number ${typeof value === 'string' ? 'text-2xl' : ''}`}>{value}</div>
-            <div className="text-xs text-muted-foreground mt-1">{sub ?? label}</div>
           </div>
         ))}
       </div>
@@ -336,9 +342,9 @@ export function Participants() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <input className="field pl-9" placeholder="Search participants…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <select className="field sm:w-36" value={filterGroup} onChange={e => setFilterGroup(e.target.value as any)}>
+            <select className="field sm:w-36" value={filterGroup} onChange={e => setFilterGroup(e.target.value as Group | 'all')}>
               <option value="all">All Groups</option>
-              {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+              {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
             </select>
             <select className="field sm:w-36" value={filterDSA} onChange={e => setFilterDSA(e.target.value as any)}>
               <option value="all">All DSA</option>
@@ -451,7 +457,7 @@ export function Participants() {
                 <div>
                   <label className="block mb-1.5 text-sm font-medium">Group</label>
                   <select className="field" value={form.group} onChange={e => setForm(f => ({ ...f, group: e.target.value as Group }))}>
-                    {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+                    {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
                   </select>
                 </div>
                 <div>

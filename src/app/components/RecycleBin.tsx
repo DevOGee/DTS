@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Trash2, RotateCcw, Search, Filter, AlertTriangle, Clock, Calendar, User, Package, DollarSign, CheckSquare, Building, GraduationCap } from 'lucide-react';
 import { useRecycleBin } from '../contexts/RecycleBinContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
+import { Users, Trash2, RotateCcw, Search, Filter, AlertTriangle, Clock, Calendar, User, Package, DollarSign, CheckSquare, Building, GraduationCap } from 'lucide-react';
 import { RecyclableItem, RecyclableItemType, formatDeletionDate, getDaysUntilExpiration, isItemExpired, isItemExpiringSoon } from '../data/recycleBinData';
 
 const TYPE_ICONS: Record<RecyclableItemType, any> = {
@@ -13,6 +14,7 @@ const TYPE_ICONS: Record<RecyclableItemType, any> = {
   checklist: CheckSquare,
   workshop: Building,
   programme: GraduationCap,
+  group: Users,
 };
 
 const TYPE_COLORS: Record<RecyclableItemType, string> = {
@@ -24,6 +26,7 @@ const TYPE_COLORS: Record<RecyclableItemType, string> = {
   checklist: 'text-pink-600',
   workshop: 'text-indigo-600',
   programme: 'text-teal-600',
+  group: 'text-cyan-600',
 };
 
 export function RecycleBin() {
@@ -35,6 +38,7 @@ export function RecycleBin() {
   const [showConfirmDialog, setShowConfirmDialog] = useState<{ type: 'restore' | 'delete' | 'empty'; item?: RecyclableItem } | null>(null);
 
   const canManage = user?.role === 'System Admin' || user?.role === 'Programme Lead';
+  const { success, error, warning } = useToast();
 
   // Filter items
   const filteredItems = useMemo(() => {
@@ -52,7 +56,7 @@ export function RecycleBin() {
 
   const handleRestore = (item: RecyclableItem) => {
     if (isItemExpired(item.deletedAt)) {
-      alert('This item has expired and cannot be restored.');
+      error('This item has expired and can no longer be restored.', 'Cannot Restore');
       return;
     }
     setShowConfirmDialog({ type: 'restore', item });
@@ -73,15 +77,18 @@ export function RecycleBin() {
       case 'restore':
         if (showConfirmDialog.item) {
           restoreFromRecycleBin(showConfirmDialog.item.id);
+          success(`"${getItemDisplayName(showConfirmDialog.item)}" has been restored to the system.`, 'Item Restored');
         }
         break;
       case 'delete':
         if (showConfirmDialog.item) {
           permanentlyDelete(showConfirmDialog.item.id);
+          warning(`"${getItemDisplayName(showConfirmDialog.item)}" has been permanently deleted.`, 'Item Deleted');
         }
         break;
       case 'empty':
         emptyRecycleBin();
+        warning(`${recycledItems.length} item(s) have been permanently removed from the recycle bin.`, 'Bin Emptied');
         break;
     }
     setShowConfirmDialog(null);
@@ -106,6 +113,8 @@ export function RecycleBin() {
         return data.name || `Workshop ${item.originalId}`;
       case 'programme':
         return data.name || `Programme ${item.originalId}`;
+      case 'group':
+        return `Group ${data.name || item.originalId}`;
       default:
         return `Item ${item.originalId}`;
     }

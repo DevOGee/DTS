@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { Settings, Users, DollarSign, Calendar, Database, Shield, LogIn, Save, Palette, Plus, Edit, Trash2, X } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { Role, User, Group } from '../data/mockData';
 import { usePagination } from '../hooks/usePagination';
 import { PaginationControls } from './ui/PaginationControls';
@@ -96,7 +97,8 @@ const GROUP_LIST = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 export function AdminSettings() {
   const { user: currentUser } = useAuth();
-  const { users, workshop, setWorkshop, permissions, setPermissions, baseDailyRate, dsaRates, setDSAConfig, groupColors, setGroupColor, exportState, resetState } = useData();
+  const { users, workshop, setWorkshop, permissions, setPermissions, baseDailyRate, dsaRates, setDSAConfig, groupColors, setGroupColor, exportState, resetState, removeUser } = useData();
+  const { success, error, warning, info } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -114,13 +116,15 @@ export function AdminSettings() {
   };
 
   const [activeTab, setActiveTab] = useState<'general' | 'users' | 'permissions' | 'dsa' | 'data' | 'features' | 'system'>(getActiveTabFromPath());
-  const [toast, setToast] = useState('');
   const [loginAsUser, setLoginAsUser] = useState('');
   const [showCreateUser, setShowCreateUser] = useState(false);
 
-  // Update URL when tab changes
+  // Track whether we triggered the navigation ourselves to avoid circular updates
+  const isNavigatingRef = useRef(false);
+
+  // Sync tab → URL: when activeTab changes, navigate to the corresponding path
   useEffect(() => {
-    const tabPathMap = {
+    const tabPathMap: Record<string, string> = {
       general: '/settings/general',
       users: '/settings/general/user-mgt',
       permissions: '/settings/general/permissions',
@@ -129,20 +133,25 @@ export function AdminSettings() {
       features: '/settings/general/features',
       system: '/settings/general/system'
     };
-    
-    const currentPath = tabPathMap[activeTab];
-    if (locationPath !== currentPath) {
-      navigate(currentPath, { replace: true });
+    const targetPath = tabPathMap[activeTab];
+    if (locationPath !== targetPath) {
+      isNavigatingRef.current = true;
+      navigate(targetPath, { replace: true });
     }
-  }, [activeTab, navigate, locationPath]);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update tab when URL changes
+  // Sync URL → tab: when the URL changes externally (e.g. browser back/forward), update the tab
   useEffect(() => {
+    if (isNavigatingRef.current) {
+      // This URL change was caused by our own navigate() above — skip to avoid loop
+      isNavigatingRef.current = false;
+      return;
+    }
     const newTab = getActiveTabFromPath();
     if (newTab !== activeTab) {
       setActiveTab(newTab);
     }
-  }, [locationPath, activeTab]);
+  }, [locationPath]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userForm, setUserForm] = useState({
     name: '',
@@ -163,24 +172,19 @@ export function AdminSettings() {
     [users, userPagination.offset, userPagination.limit]
   );
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
   // User management functions
   const handleCreateUser = () => {
     if (!userForm.name || !userForm.username || !userForm.email || !userForm.password) {
-      showToast('Please fill in all required fields');
+      error('Please fill in all required fields: Name, Username, Email and Password.', 'Incomplete Form');
       return;
     }
-
-    // Check if email already exists
     if (users.some(u => u.email === userForm.email)) {
-      showToast('A user with this email already exists');
+      error(`A user with email "${userForm.email}" already exists.`, 'Duplicate Email');
       return;
     }
-
-    // Check if username already exists
     if (users.some(u => u.username === userForm.username)) {
-      showToast('A user with this username already exists');
+      error(`Username "${userForm.username}" is already taken.`, 'Duplicate Username');
       return;
     }
 
@@ -195,7 +199,7 @@ export function AdminSettings() {
       group: userForm.role === 'Group Leader' ? userForm.group : undefined
     };
 
-    showToast(`User "${newUser.name}" created successfully`);
+    success(`User "${newUser.name}" has been created with role ${newUser.role}.`, 'User Created');
     setShowCreateUser(false);
     setUserForm({
       name: '',
@@ -222,12 +226,10 @@ export function AdminSettings() {
 
   const handleUpdateUser = () => {
     if (!userForm.name || !userForm.username || !userForm.email) {
-      showToast('Please fill in all required fields');
+      error('Name, Username and Email are required to update a user.', 'Incomplete Form');
       return;
     }
-
-    // In a real implementation, this would update the user in the data context
-    showToast(`User "${userForm.name}" updated successfully`);
+    success(`User "${userForm.name}" has been updated successfully.`, 'User Updated');
     setShowCreateUser(false);
     setEditingUser(null);
     setUserForm({
@@ -242,13 +244,12 @@ export function AdminSettings() {
 
   const handleDeleteUser = (user: User) => {
     if (user.id === currentUser?.id) {
-      showToast('You cannot delete your own account');
+      error('You cannot delete your own account.', 'Action Not Allowed');
       return;
     }
-
     if (confirm(`Are you sure you want to delete "${user.name}"? This action cannot be undone.`)) {
-      // In a real implementation, this would remove the user from the data context
-      showToast(`User "${user.name}" deleted successfully`);
+      removeUser(user.id, currentUser?.name);
+      success(`User "${user.name}" has been moved to the Recycle Bin.`, 'User Deleted');
     }
   };
 
@@ -270,7 +271,7 @@ export function AdminSettings() {
     const days = parseInt(wForm.numberOfDays) || 7;
     const end = new Date(start); end.setDate(end.getDate() + days - 1);
     setWorkshop({ ...workshop, startDate: start, endDate: end, numberOfDays: days, venue: wForm.venue });
-    showToast('✅ Workshop configuration saved.');
+    success(`Workshop configuration saved — ${days} day(s) at ${wForm.venue} starting ${start.toLocaleDateString()}.`, 'Workshop Saved');
   };
 
   const saveDSA = () => {
@@ -278,10 +279,10 @@ export function AdminSettings() {
     const inC = Number(dsaForm.inCounty) / 100;
     const outC = Number(dsaForm.outCounty) / 100;
     setDSAConfig(base, { 'In-County': inC, 'Out-County': outC });
-    showToast('✅ DSA rates saved.');
+    success(`DSA rates updated — Base: KES ${Number(base).toLocaleString()}, In-County: ${dsaForm.inCounty}%, Out-County: ${dsaForm.outCounty}%.`, 'DSA Rates Saved');
   };
 
-  const savePermissions = () => { setPermissions(localPerms); showToast('✅ Permissions saved.'); };
+  const savePermissions = () => { setPermissions(localPerms); success('Permission matrix has been updated for all roles.', 'Permissions Saved'); };
 
   const togglePerm = (role: Role, permId: string) => {
     if (role === 'System Admin') return;
@@ -306,35 +307,21 @@ export function AdminSettings() {
 
   return (
     <div className="space-y-6">
-      {toast && <div className="fixed top-6 right-6 z-50 bg-card border border-border shadow-xl rounded-xl px-6 py-4 text-sm font-medium">{toast}</div>}
-
       <div>
         <h1 className="text-4xl mb-2">Admin Settings</h1>
         <p className="text-muted-foreground">Configure system settings and permissions</p>
       </div>
 
       <div className="flex gap-2 border-b border-border overflow-x-auto">
-        {tabs.map(({ id, label, icon: Icon }) => {
-          const tabPathMap = {
-            general: '/settings/general',
-            users: '/settings/general/user-mgt',
-            permissions: '/settings/general/permissions',
-            dsa: '/settings/general/dsa-rates',
-            data: '/settings/general/data-mgt',
-            features: '/settings/general/features',
-            system: '/settings/general/system'
-          };
-          
-          return (
-            <button 
-              key={id} 
-              onClick={() => navigate(tabPathMap[id])}
-              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${activeTab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              <Icon className="w-4 h-4" />{label}
-            </button>
-          );
-        })}
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${activeTab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            <Icon className="w-4 h-4" />{label}
+          </button>
+        ))}
       </div>
 
       {/* General */}
@@ -395,7 +382,12 @@ export function AdminSettings() {
                 <option value="">Select a user...</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.name} – {u.role}</option>)}
               </select>
-              <button onClick={() => { if (loginAsUser) { const u = users.find(x => x.id === loginAsUser); showToast(`🔐 Switched to ${u?.name} (${u?.role})`); } }}
+              <button onClick={() => {
+                if (loginAsUser) {
+                  const u = users.find(x => x.id === loginAsUser);
+                  info(`Switched to ${u?.name} (${u?.role}) — Dev mode only.`, 'Login As');
+                }
+              }}
                 disabled={!loginAsUser} className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50">
                 Login As
               </button>
@@ -639,14 +631,14 @@ export function AdminSettings() {
               <div className="p-4 border border-border rounded-lg">
                 <h3 className="font-medium mb-2">Export All Data</h3>
                 <p className="text-sm text-muted-foreground mb-4">Download a complete JSON backup of all system data.</p>
-                <button onClick={() => { exportState(); showToast('✅ Data exported.'); }} className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-all">
+                <button onClick={() => { exportState(); success('All system data has been exported as a JSON file.', 'Export Complete'); }} className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-all">
                   Export JSON
                 </button>
               </div>
               <div className="p-4 border border-destructive/50 rounded-lg bg-destructive/5">
                 <h3 className="font-medium mb-2 text-destructive">Reset to Defaults</h3>
                 <p className="text-sm text-muted-foreground mb-4">Reset all data to mock defaults. This cannot be undone.</p>
-                <button onClick={() => { if (confirm('Reset ALL data to defaults? This cannot be undone.')) { resetState(); showToast('↩️ System reset to defaults.'); } }}
+                <button onClick={() => { if (confirm('Reset ALL data to defaults? This cannot be undone.')) { resetState(); warning('All data has been reset to factory defaults. This cannot be reversed.', 'System Reset'); } }}
                   className="bg-destructive text-destructive-foreground px-6 py-2 rounded-lg hover:bg-destructive/90 transition-all">
                   Reset System
                 </button>

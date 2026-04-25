@@ -21,10 +21,12 @@ import {
   Participant,
   Attendance,
   PaymentSchedule,
+  mockWorkshops,
 } from '../data/mockData';
 import { mockChecklistItems, ChecklistItem } from '../data/checklistData';
 import { mockVideoLogs, mockGroupVideoStats, VideoLog, GroupVideoStats } from '../data/multimediaData';
 import { useRecycleBin } from './RecycleBinContext';
+import { validateWorkshop } from '../utils/workshopValidation';
 
 const STORAGE_KEY = 'dts_app_state';
 const DATA_VERSION = '2.1'; // Increment to force cache refresh
@@ -33,6 +35,7 @@ export interface DataContextType {
   users: User[];
   groups: string[];
   workshop: Workshop;
+  workshops: Workshop[];
   programmes: Programme[];
   courses: Course[];
   participants: Participant[];
@@ -48,10 +51,18 @@ export interface DataContextType {
   setUsers: (users: User[]) => void;
   addUser: (user: User) => void;
   updateUser: (user: User) => void;
+  removeUser: (userId: string, deletedBy?: string) => void;
+  restoreUser: (user: User) => void;
   addGroup: (name: string) => void;
-  removeGroup: (name: string) => void;
+  removeGroup: (name: string, deletedBy?: string) => void;
+  restoreGroup: (group: { name: string; courses: Course[]; participants: Participant[] }) => void;
   renameGroup: (oldName: string, newName: string) => void;
   setWorkshop: (workshop: Workshop) => void;
+  setWorkshops: (workshops: Workshop[]) => void;
+  addWorkshop: (workshop: Omit<Workshop, 'id'>) => void;
+  updateWorkshop: (workshop: Workshop) => void;
+  removeWorkshop: (workshopId: string, deletedBy?: string) => void;
+  activateWorkshop: (workshopId: string) => void;
   setCourses: (courses: Course[]) => void;
   addCourse: (course: Course) => void;
   updateCourse: (course: Course) => void;
@@ -94,6 +105,7 @@ const normalizeSavedState = (saved: any) => {
       users: saved.users ?? mockUsers,
       groups: saved.groups ?? [...DEFAULT_GROUPS],
       workshop,
+      workshops: saved.workshops ?? mockWorkshops,
       programmes: saved.programmes ?? mockProgrammes,
       courses: saved.courses ?? allMockCourses,
       participants: saved.participants ?? mockParticipants,
@@ -135,6 +147,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>(initialState?.users ?? mockUsers);
   const [groups, setGroups] = useState<string[]>(initialState?.groups ?? [...DEFAULT_GROUPS]);
   const [workshop, setWorkshop] = useState<Workshop>(initialState?.workshop ?? mockWorkshop);
+  const [workshops, setWorkshops] = useState<Workshop[]>(initialState?.workshops ?? mockWorkshops);
   const [programmes, setProgrammes] = useState<Programme[]>(initialState?.programmes ?? mockProgrammes);
   const [courses, setCourses] = useState<Course[]>(initialState?.courses ?? allMockCourses);
   const [participants, setParticipants] = useState<Participant[]>(initialState?.participants ?? mockParticipants);
@@ -178,6 +191,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setParticipants((prev) => [...prev, participant]);
   };
 
+  const restoreUser = (user: User) => {
+    setUsers((prev) => [...prev, user]);
+  };
+
+  const restoreGroup = (data: { name: string; courses: Course[]; participants: Participant[] }) => {
+    setGroups((prev) => [...prev, data.name]);
+    setCourses((prev) => [...prev, ...data.courses]);
+    setParticipants((prev) => [...prev, ...data.participants]);
+  };
+
   // Listen for restore events from recycle bin
   useEffect(() => {
     const handleRestore = (event: CustomEvent) => {
@@ -186,12 +209,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
         restoreCourse(item.data);
       } else if (item.type === 'participant') {
         restoreParticipant(item.data);
+      } else if (item.type === 'user') {
+        restoreUser(item.data);
+      } else if (item.type === 'group') {
+        restoreGroup(item.data);
       }
     };
 
     window.addEventListener('restoreFromRecycleBin', handleRestore as EventListener);
     return () => window.removeEventListener('restoreFromRecycleBin', handleRestore as EventListener);
-  }, [restoreCourse, restoreParticipant]);
+  }, [restoreCourse, restoreParticipant, restoreUser, restoreGroup]);
 
   const addUser = (user: User) => setUsers((prev) => [...prev, user]);
   const updateUser = (user: User) => setUsers((prev) => prev.map((item) => (item.id === user.id ? user : item)));
@@ -204,23 +231,114 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setGroupColors((prev) => (prev[trimmed] ? prev : { ...prev, [trimmed]: '#037b90' }));
   };
 
-  const removeGroup = (name: string) => {
+  const removeGroup = (name: string, deletedBy?: string) => {
+    const groupCourses = courses.filter((c) => c.assignedGroup === name);
+    const groupParticipants = participants.filter((p) => p.group === name);
+
+    addToRecycleBin({
+      type: 'group',
+      originalId: name,
+      data: {
+        name,
+        courses: groupCourses,
+        participants: groupParticipants,
+      },
+      deletedBy: deletedBy || 'Unknown',
+      moduleName: 'Group Management',
+    });
+
     setGroups((prev) => prev.filter((g) => g !== name));
     setCourses((prev) => prev.filter((c) => c.assignedGroup !== name));
     setParticipants((prev) => prev.filter((p) => p.group !== name));
+  };
+
+  const removeUser = (userId: string, deletedBy?: string) => {
+    const userToRemove = users.find((u) => u.id === userId);
+    if (userToRemove) {
+      addToRecycleBin({
+        type: 'user',
+        originalId: userId,
+        data: userToRemove,
+        deletedBy: deletedBy || 'Unknown',
+        moduleName: 'User Management',
+      });
+    }
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
   const renameGroup = (oldName: string, newName: string) => {
     const trimmed = newName.trim().toUpperCase();
     if (!trimmed || trimmed === oldName) return;
     setGroups((prev) => prev.map((g) => (g === oldName ? trimmed : g)));
-    setCourses((prev) => prev.map((c) => c.assignedGroup === oldName ? { ...c, assignedGroup: trimmed as Group } : c));
-    setParticipants((prev) => prev.map((p) => p.group === oldName ? { ...p, group: trimmed as Group } : p));
+    setCourses((prev) => prev.map((c) => (c.assignedGroup === oldName ? { ...c, assignedGroup: trimmed as Group } : c)));
+    setParticipants((prev) => prev.map((p) => (p.group === oldName ? { ...p, group: trimmed as Group } : p)));
     setGroupColors((prev) => {
       const next = { ...prev };
       if (next[oldName]) { next[trimmed] = next[oldName]; delete next[oldName]; }
       return next;
     });
+  };
+
+  const addWorkshop = (workshopData: Omit<Workshop, 'id'>) => {
+    const newWorkshop: Workshop = { ...workshopData, id: `w-${Date.now()}` };
+    const errors = validateWorkshop(newWorkshop, workshops);
+    if (errors.length > 0) {
+      throw new Error(errors.join('\n'));
+    }
+    setWorkshops((prev) => [...prev, newWorkshop]);
+    if (newWorkshop.status === 'Active') {
+      setWorkshop(newWorkshop);
+    }
+  };
+
+  const updateWorkshop = (updatedWorkshop: Workshop) => {
+    const errors = validateWorkshop(updatedWorkshop, workshops.filter(w => w.id !== updatedWorkshop.id));
+    if (errors.length > 0) {
+      throw new Error(errors.join('\n'));
+    }
+    setWorkshops((prev) => prev.map((w) => (w.id === updatedWorkshop.id ? updatedWorkshop : w)));
+    if (updatedWorkshop.status === 'Active') {
+      setWorkshop(updatedWorkshop);
+    } else if (workshop.id === updatedWorkshop.id) {
+      // Find the earliest upcoming workshop or default to mock
+      const active = workshops.find(w => w.id !== updatedWorkshop.id && w.status === 'Active');
+      if (active) setWorkshop(active);
+    }
+  };
+
+  const removeWorkshop = (workshopId: string, deletedBy?: string) => {
+    const wToRemove = workshops.find((w) => w.id === workshopId);
+    if (wToRemove) {
+      addToRecycleBin({
+        type: 'workshop',
+        originalId: workshopId,
+        data: wToRemove,
+        deletedBy: deletedBy || 'Unknown',
+        moduleName: 'Workshop Management',
+      });
+    }
+    setWorkshops((prev) => prev.filter((w) => w.id !== workshopId));
+  };
+
+  const activateWorkshop = (workshopId: string) => {
+    const target = workshops.find(w => w.id === workshopId);
+    if (!target) return;
+
+    const updated = { ...target, status: 'Active' as const };
+    const errors = validateWorkshop(updated, []); // no existing active if we clear them
+    if (errors.length > 0 && errors[0] !== `Another workshop "${target.name}" is already active. Only one active workshop is allowed.`) {
+       throw new Error(errors.join('\n'));
+    }
+
+    setWorkshops(prev => prev.map(w => {
+      if (w.id === workshopId) return updated;
+      if (w.status === 'Active') return { ...w, status: 'Upcoming' };
+      return w;
+    }));
+    setWorkshop(updated);
+    
+    // Dispatch custom event for real-time sync
+    window.dispatchEvent(new CustomEvent('workshopStatusChanged', { detail: { workshopId } }));
   };
 
   const addCourse = (course: Course) => setCourses((prev) => [...prev, course]);
@@ -335,6 +453,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       users,
       groups,
       workshop,
+      workshops,
       programmes,
       courses,
       participants,
@@ -350,10 +469,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setUsers,
       addUser,
       updateUser,
+      removeUser,
+      restoreUser,
       addGroup,
       removeGroup,
       renameGroup,
       setWorkshop,
+      setWorkshops,
+      addWorkshop,
+      updateWorkshop,
+      removeWorkshop,
+      activateWorkshop,
       setCourses,
       addCourse,
       updateCourse,
@@ -364,6 +490,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateParticipant,
       removeParticipant,
       restoreParticipant,
+      restoreGroup,
       setAttendance,
       toggleAttendance,
       markAttendanceDayPresent,
@@ -383,6 +510,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       users,
       groups,
       workshop,
+      workshops,
       programmes,
       courses,
       participants,

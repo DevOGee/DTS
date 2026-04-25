@@ -1,5 +1,5 @@
 export const GROUPS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
-export type Group = typeof GROUPS[number];
+export type Group = string;
 
 export const ROLES = ['System Admin', 'Programme Lead', 'Group Leader', 'Viewer/Digitiser'] as const;
 export type Role = typeof ROLES[number];
@@ -258,6 +258,38 @@ export const mockWorkshop: Workshop = {
   endDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), // Ends in 4 days
   status: 'Active',
 };
+
+// Mock multiple workshops
+export const mockWorkshops: Workshop[] = [
+  mockWorkshop,
+  {
+    id: 'w2',
+    name: 'OUK Content Digitisation Phase 2',
+    venue: 'JKUAT Main Campus - ICT Building',
+    startDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    numberOfDays: 10,
+    endDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+    status: 'Upcoming' // Only one active allowed!
+  },
+  {
+    id: 'w4',
+    name: 'OUK Advanced Digitisation Workshop 2026',
+    venue: 'JKUAT Main Campus - Library',
+    startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    numberOfDays: 5,
+    endDate: new Date(Date.now() + 11 * 24 * 60 * 60 * 1000),
+    status: 'Upcoming'
+  },
+  {
+    id: 'w7',
+    name: 'OUK Foundation Digitisation Workshop 2025',
+    venue: 'JKUAT Main Campus - Main Hall',
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    numberOfDays: 7,
+    endDate: new Date(Date.now() - 24 * 24 * 60 * 60 * 1000),
+    status: 'Completed'
+  }
+];
 
 // Mock programmes - System-wide replacement with finalized programme list
 export const mockProgrammes: Programme[] = [

@@ -18,7 +18,7 @@ const NAV = [
   { path: '/payments',     label: 'Payments',     icon: DollarSign },
   { path: '/checklist',    label: 'Checklist',    icon: CheckSquare },
   { path: '/reports',      label: 'Reports',      icon: FileText },
-  { path: '/workshops',    label: 'Workshops',    icon: Calendar },
+  { path: '/workshops/active',    label: 'Workshops',    icon: Calendar },
   { path: '/requests',     label: 'Requests',     icon: Send },
   { path: '/recycle-bin',  label: 'Recycle Bin',  icon: Trash2 },
 ];
@@ -66,13 +66,14 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {navItems.map(({ path, label, icon: Icon }) => (
           <NavLink key={path} to={path}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all group ${
-                isActive
+            className={({ isActive }) => {
+              const isWorkshopRoute = path.includes('/workshops') && location.pathname.startsWith('/workshops');
+              return `flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all group ${
+                isActive || isWorkshopRoute
                   ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
                   : 'text-foreground hover:bg-muted'
-              }`
-            }
+              }`;
+            }}
             title={collapsed && !mobile ? label : undefined}
           >
             <Icon className="w-5 h-5 flex-shrink-0" />

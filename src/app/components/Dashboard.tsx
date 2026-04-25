@@ -1,16 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Area, AreaChart } from 'recharts';
-import { Calendar, Users, User, BookOpen, Target, TrendingUp, Clock, MapPin, Activity, CheckCircle, AlertCircle, Zap, FileText, X, BarChart3, PieChart as PieChartIcon, TrendingDown, Award, LogOut, ChevronDown, Settings, KeyRound } from 'lucide-react';
+import { Calendar, Users, User, BookOpen, Target, TrendingUp, Clock, MapPin, Activity, CheckCircle, AlertCircle, Zap, FileText, X, BarChart3, PieChart as PieChartIcon, TrendingDown, Award, LogOut, ChevronDown, Settings, KeyRound, Video, Plus } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-import { GROUPS, Group, mockProgrammes } from '../data/mockData';
+import { Group, mockProgrammes } from '../data/mockData';
 
 export function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, impersonate } = useAuth();
-  const { courses, participants, workshop, attendance, updateUser } = useData();
+  const { groups, groupVideoStats, courses, participants, workshop, attendance, updateUser } = useData();
   const [timeRemaining, setTimeRemaining] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<Group | 'all'>('all');
   const [selectedProgramme, setSelectedProgramme] = useState<string>('all');
@@ -79,7 +79,7 @@ export function Dashboard() {
     };
   }, [courses, workshop]);
 
-  const groupStats = useMemo(() => GROUPS.map(group => {
+  const groupStats = useMemo(() => groups.map(group => {
     const gc = courses.filter(c => c.assignedGroup === group);
     const total = gc.length * 10;
     const completed = gc.reduce((s, c) => s + c.completedModules, 0);
@@ -247,20 +247,27 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
-          { label: 'Total Courses', value: stats.totalCourses, sub: `${mockProgrammes.length} programmes`, icon: BookOpen, color: 'text-primary' },
-          { label: 'Total Modules', value: stats.totalModules, sub: `${stats.completedModules} completed`, icon: Target, color: 'text-secondary' },
-          { label: 'Duration', value: `${workshop.numberOfDays} Days`, sub: `Day ${stats.currentDay} of ${workshop.numberOfDays}`, icon: Calendar, color: 'text-chart-3' },
-          { label: 'Daily Target', value: stats.dailyTarget, sub: stats.isOnTrack ? '✓ On Track' : 'Behind Schedule', icon: TrendingUp, color: stats.isOnTrack ? 'text-chart-3' : 'text-destructive' },
-        ].map(({ label, value, sub, icon: Icon, color }) => (
-          <div key={label} className="group bg-card/90 backdrop-blur rounded-2xl p-6 border border-border/70 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)] hover:shadow-[0_18px_30px_-18px_rgba(3,123,144,0.35)] hover:-translate-y-0.5 transition-all duration-300">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm text-muted-foreground">{label}</div>
-              <div className="rounded-lg border border-border/80 bg-background/70 p-2 group-hover:border-primary/30 transition-colors">
-                <Icon className={`w-5 h-5 ${color}`} />
+          { label: 'Total Courses', value: stats.totalCourses, sub: `${mockProgrammes.length} programmes`, icon: BookOpen, color: 'text-blue-600', gradient: 'from-blue-500/10 to-indigo-500/10', borderHover: 'hover:border-blue-300/50' },
+          { label: 'Total Modules', value: stats.totalModules, sub: `${stats.completedModules} completed`, icon: Target, color: 'text-teal-600', gradient: 'from-teal-500/10 to-emerald-500/10', borderHover: 'hover:border-teal-300/50' },
+          { label: 'Duration', value: `${workshop.numberOfDays} Days`, sub: `Day ${stats.currentDay} of ${workshop.numberOfDays}`, icon: Calendar, color: 'text-amber-600', gradient: 'from-amber-500/10 to-orange-500/10', borderHover: 'hover:border-amber-300/50' },
+          { label: 'Daily Target', value: stats.dailyTarget, sub: stats.isOnTrack ? '✓ On Track' : 'Behind Schedule', icon: TrendingUp, color: stats.isOnTrack ? 'text-green-600' : 'text-rose-600', gradient: stats.isOnTrack ? 'from-green-500/10 to-emerald-500/10' : 'from-rose-500/10 to-red-500/10', borderHover: stats.isOnTrack ? 'hover:border-green-300/50' : 'hover:border-rose-300/50' },
+        ].map(({ label, value, sub, icon: Icon, color, gradient, borderHover }) => (
+          <div key={label} className={`relative group bg-card/40 backdrop-blur-xl rounded-2xl p-6 border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${borderHover} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between min-h-[140px]`}>
+            {/* Subtle Gradient Overlay */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0`} />
+            
+            <div className="relative z-10">
+              <div className="flex items-start justify-between mb-4">
+                <div className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{label}</div>
+                <div className="rounded-xl border border-white/20 bg-background/50 shadow-sm p-2 group-hover:scale-110 transition-transform duration-300">
+                  <Icon className={`w-5 h-5 ${color}`} />
+                </div>
+              </div>
+              <div>
+                <div className="text-4xl font-light tracking-tight mb-1">{value}</div>
+                <div className={`text-sm font-medium ${color.replace('text-', 'text-').replace('-600', '-500')} opacity-90`}>{sub}</div>
               </div>
             </div>
-            <div className="text-3xl mb-2 tracking-tight">{value}</div>
-            <div className={`text-xs ${color === 'text-destructive' && !stats.isOnTrack && label === 'Daily Target' ? 'text-destructive' : 'text-muted-foreground'}`}>{sub}</div>
           </div>
         ))}
       </div>
@@ -274,7 +281,7 @@ export function Dashboard() {
                 aria-label="Filter overall progress by group"
                 className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm shadow-sm">
                 <option value="all">All Groups</option>
-                {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+                {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
               </select>
               <select value={selectedProgramme} onChange={e => { setSelectedProgramme(e.target.value); setSelectedGroup('all'); }}
                 aria-label="Filter overall progress by programme"
@@ -380,11 +387,11 @@ export function Dashboard() {
             Participants
           </h2>
           <div className="text-5xl font-bold mb-2 text-primary">{participants.length}</div>
-          <div className="text-sm text-muted-foreground">Across {GROUPS.length} groups</div>
+          <div className="text-sm text-muted-foreground">Across {groups.length} groups</div>
           <div className="mt-4 pt-4 border-t border-border">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-2xl font-semibold text-chart-3">{GROUPS.length}</div>
+                <div className="text-2xl font-semibold text-chart-3">{groups.length}</div>
                 <div className="text-xs text-muted-foreground">Active Groups</div>
               </div>
               <div>
@@ -392,6 +399,68 @@ export function Dashboard() {
                 <div className="text-xs text-muted-foreground">Avg Progress</div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Multimedia Progress Card */}
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(37,99,235,0.3)]">
+          <h2 className="text-xl mb-4 flex items-center gap-2">
+            <Video className="w-6 h-6 text-blue-600" /> 
+            Multimedia Progress
+          </h2>
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="text-5xl font-bold text-blue-600">
+                {groupVideoStats.reduce((s, g) => s + g.videosComplete, 0)}
+              </div>
+              <div className="text-sm text-muted-foreground mt-1">Total Videos Done</div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-semibold text-blue-400">
+                {groupVideoStats.reduce((s, g) => s + g.totalVideos, 0)}
+              </div>
+              <div className="text-xs text-muted-foreground">Total Needed</div>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm mb-1">
+              <span className="font-medium">Overall Completion</span>
+              <span className="text-blue-600 font-bold">
+                {(() => {
+                  const done = groupVideoStats.reduce((s, g) => s + g.videosComplete, 0);
+                  const total = groupVideoStats.reduce((s, g) => s + g.totalVideos, 0);
+                  return total > 0 ? Math.round((done / total) * 100) : 0;
+                })()}%
+              </span>
+            </div>
+            <div className="h-3 bg-blue-50 rounded-full overflow-hidden border border-blue-100 shadow-inner">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-1000 ease-out"
+                style={{ 
+                  width: `${(() => {
+                    const done = groupVideoStats.reduce((s, g) => s + g.videosComplete, 0);
+                    const total = groupVideoStats.reduce((s, g) => s + g.totalVideos, 0);
+                    return total > 0 ? Math.round((done / total) * 100) : 0;
+                  })()}%` 
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <button 
+              onClick={() => navigate('/multimedia')}
+              className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-semibold hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
+            >
+              <Activity className="w-3 h-3" /> View Details
+            </button>
+            <button 
+              onClick={() => navigate('/multimedia/log-video')}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition-shadow shadow-md flex items-center justify-center gap-1"
+            >
+              <Plus className="w-3 h-3" /> Log Video
+            </button>
           </div>
         </div>
         <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)] lg:col-span-2">
@@ -476,7 +545,7 @@ export function Dashboard() {
           </div>
         </div>
         <div className="space-y-3">
-          {GROUPS.map(group => {
+          {groups.map(group => {
             const attendanceRate = Math.floor(Math.random() * 20) + 75; // Mock data
             return (
               <div key={group} className="flex items-center gap-3">
@@ -683,7 +752,7 @@ export function Dashboard() {
                     <span className="text-sm font-medium text-blue-800">Active Users</span>
                   </div>
                   <div className="text-3xl font-bold text-blue-700">{participants.length}</div>
-                  <div className="text-xs text-blue-600 mt-1">Across {GROUPS.length} groups</div>
+                  <div className="text-xs text-blue-600 mt-1">Across {groups.length} groups</div>
                 </div>
                 
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200">

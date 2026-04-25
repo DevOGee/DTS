@@ -4,6 +4,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import { RecycleBinProvider } from './contexts/RecycleBinContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { DYNAMIC_ROUTES } from './routes/routeConfig';
 import { ProtectedRoute, RouteGuard } from './components/ProtectedRoute';
 import { LandingPage } from './components/LandingPage';
@@ -80,13 +81,15 @@ function AppRoutes() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <RecycleBinProvider>
-        <DataProvider>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </DataProvider>
-      </RecycleBinProvider>
+      <ToastProvider>
+        <RecycleBinProvider>
+          <DataProvider>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          </DataProvider>
+        </RecycleBinProvider>
+      </ToastProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

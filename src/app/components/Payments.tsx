@@ -2,20 +2,20 @@ import { useState, useMemo } from 'react';
 import { Search, Download, DollarSign, CheckCircle, Clock, Edit, X, Save, TrendingUp } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-import { GROUPS, Group, PaymentSchedule } from '../data/mockData';
+import { useToast } from '../contexts/ToastContext';
+import { Group, PaymentSchedule } from '../data/mockData';
 
 export function Payments() {
   const { user } = useAuth();
-  const { participants, paymentSchedules, baseDailyRate, dsaRates, updatePaymentSchedule } = useData();
+  const { groups, participants, paymentSchedules, baseDailyRate, dsaRates, updatePaymentSchedule } = useData();
   const [search, setSearch] = useState('');
   const [filterGroup, setFilterGroup] = useState<Group | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'Pending' | 'Processed' | 'Paid'>('all');
   const [editing, setEditing] = useState<PaymentSchedule | null>(null);
   const [editForm, setEditForm] = useState<Partial<PaymentSchedule>>({});
-  const [toast, setToast] = useState('');
+  const { success } = useToast();
 
   const canEdit = (g: Group) => user?.role === 'System Admin' || user?.role === 'Programme Lead' || (user?.role === 'Group Leader' && user.group === g);
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
   const participantOf = (ps: PaymentSchedule) => participants.find(p => p.id === ps.participantId);
 
@@ -36,7 +36,12 @@ export function Payments() {
   const openEdit = (ps: PaymentSchedule) => { setEditing(ps); setEditForm({ ...ps }); };
   const closeEdit = () => { setEditing(null); setEditForm({}); };
   const saveEdit = () => {
-    if (editing) { updatePaymentSchedule({ ...editing, ...editForm } as PaymentSchedule); showToast('✅ Payment updated.'); }
+    if (editing) {
+      const updated = { ...editing, ...editForm } as PaymentSchedule;
+      updatePaymentSchedule(updated);
+      const p = participantOf(updated);
+      success(`Payment for ${p?.name ?? 'participant'} updated — Status: ${updated.status}, Amount: KES ${updated.amount.toLocaleString()}.`, 'Payment Updated');
+    }
     closeEdit();
   };
 
@@ -49,6 +54,7 @@ export function Payments() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a'); a.href = url; a.download = 'dsa_payments.csv'; a.click();
     URL.revokeObjectURL(url);
+    success(`${filtered.length} payment record(s) exported as dsa_payments.csv.`, 'Export Complete');
   };
 
   const statusClass = (s: string) =>
@@ -56,8 +62,6 @@ export function Payments() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {toast && <div className="toast">{toast}</div>}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex-1">
@@ -104,7 +108,7 @@ export function Payments() {
             </div>
             <select className="field sm:w-36" value={filterGroup} onChange={e => setFilterGroup(e.target.value as any)}>
               <option value="all">All Groups</option>
-              {GROUPS.map(g => <option key={g} value={g}>Group {g}</option>)}
+              {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
             </select>
             <select className="field sm:w-36" value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}>
               <option value="all">All Statuses</option>

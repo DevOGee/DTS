@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MessageSquare, Send, Star, ThumbsUp, ThumbsDown, Clock, User, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface FeedbackItem {
   id: string;
@@ -38,8 +39,8 @@ export function Feedback() {
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed' | 'resolved'>('all');
+  const { success, error } = useToast();
 
   useEffect(() => {
     // Load feedbacks from localStorage
@@ -102,6 +103,11 @@ export function Feedback() {
 
     setIsSubmitting(true);
     
+    if (!newFeedback.title.trim() || !newFeedback.message.trim()) {
+      error('Please provide both a title and detailed feedback before submitting.', 'Incomplete Feedback');
+      setIsSubmitting(false);
+      return;
+    }
     const feedback: FeedbackItem = {
       id: Date.now().toString(),
       userId: user?.id || 'anonymous',
@@ -120,16 +126,8 @@ export function Feedback() {
     setFeedbacks(updatedFeedbacks);
     localStorage.setItem('dts_feedbacks', JSON.stringify(updatedFeedbacks));
 
-    // Reset form
-    setNewFeedback({
-      category: 'General Feedback',
-      rating: 5,
-      title: '',
-      message: ''
-    });
-
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    setNewFeedback({ category: 'General Feedback', rating: 5, title: '', message: '' });
+    success(`Feedback "${feedback.title}" submitted successfully. We'll review it shortly.`, 'Feedback Submitted');
     setIsSubmitting(false);
   };
 
@@ -174,13 +172,6 @@ export function Feedback() {
           Submit Your Feedback
         </h2>
         
-        {showSuccess && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <span className="text-green-800">Thank you! Your feedback has been submitted successfully.</span>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

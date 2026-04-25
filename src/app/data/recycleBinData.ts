@@ -1,4 +1,4 @@
-export type RecyclableItemType = 'course' | 'participant' | 'user' | 'payment' | 'attendance' | 'checklist' | 'workshop' | 'programme';
+export type RecyclableItemType = 'course' | 'participant' | 'user' | 'payment' | 'attendance' | 'checklist' | 'workshop' | 'programme' | 'group';
 
 export interface RecyclableItem {
   id: string;
