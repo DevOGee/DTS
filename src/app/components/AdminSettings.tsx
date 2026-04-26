@@ -4,7 +4,7 @@ import { Settings, Users, DollarSign, Calendar, Database, Shield, LogIn, Save, P
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { Role, User, Group } from '../data/mockData';
+import { Role, User, Group, Workshop } from '../data/mockData';
 import { usePagination } from '../hooks/usePagination';
 import { PaginationControls } from './ui/PaginationControls';
 
@@ -97,7 +97,7 @@ const GROUP_LIST = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 export function AdminSettings() {
   const { user: currentUser } = useAuth();
-  const { users, workshop, setWorkshop, permissions, setPermissions, baseDailyRate, dsaRates, setDSAConfig, groupColors, setGroupColor, exportState, resetState, removeUser } = useData();
+  const { users, workshop, setWorkshop, workshops, setWorkshops, permissions, setPermissions, baseDailyRate, dsaRates, setDSAConfig, groupColors, setGroupColor, exportState, resetState, removeUser } = useData();
   const { success, error, warning, info } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -164,6 +164,15 @@ export function AdminSettings() {
 
   // Local form states
   const [wForm, setWForm] = useState({ startDate: new Date(workshop.startDate).toISOString().split('T')[0], numberOfDays: String(workshop.numberOfDays), venue: workshop.venue });
+
+  // Sync workshop form with global workshop state
+  useEffect(() => {
+    setWForm({
+      startDate: new Date(workshop.startDate).toISOString().split('T')[0],
+      numberOfDays: String(workshop.numberOfDays),
+      venue: workshop.venue
+    });
+  }, [workshop.startDate, workshop.numberOfDays, workshop.venue]);
   const [dsaForm, setDsaForm] = useState({ base: String(baseDailyRate), inCounty: String(dsaRates['In-County'] * 100), outCounty: String(dsaRates['Out-County'] * 100) });
   const [localPerms, setLocalPerms] = useState(permissions);
   const userPagination = usePagination(users.length, 10);
@@ -268,9 +277,34 @@ export function AdminSettings() {
 
   const saveWorkshop = () => {
     const start = new Date(wForm.startDate);
-    const days = parseInt(wForm.numberOfDays) || 7;
+    const days = parseInt(wForm.numberOfDays);
+    
+    // Validate days input
+    if (!days || days < 1 || days > 30) {
+      error('Please enter a valid number of days between 1 and 30.', 'Invalid Days');
+      return;
+    }
+    
     const end = new Date(start); end.setDate(end.getDate() + days - 1);
-    setWorkshop({ ...workshop, startDate: start, endDate: end, numberOfDays: days, venue: wForm.venue });
+    const updatedWorkshop = { ...workshop, startDate: start, endDate: end, numberOfDays: days, venue: wForm.venue };
+    
+    // Update the main workshop state
+    setWorkshop(updatedWorkshop);
+    
+    // Also update in the workshops array to maintain synchronization
+    const updatedWorkshops = workshops.map((w: Workshop) => 
+      w.id === workshop.id ? updatedWorkshop : w
+    );
+    setWorkshops(updatedWorkshops);
+    
+    // Dispatch custom event for real-time sync across components
+    window.dispatchEvent(new CustomEvent('workshopSettingsChanged', { 
+      detail: { 
+        workshop: updatedWorkshop,
+        changedFields: ['startDate', 'endDate', 'numberOfDays', 'venue']
+      } 
+    }));
+    
     success(`Workshop configuration saved — ${days} day(s) at ${wForm.venue} starting ${start.toLocaleDateString()}.`, 'Workshop Saved');
   };
 
@@ -300,8 +334,10 @@ export function AdminSettings() {
   ];
 
   const endDate = (() => {
+    const days = parseInt(wForm.numberOfDays);
+    if (!days || days < 1 || days > 30) return '';
     const d = new Date(wForm.startDate);
-    d.setDate(d.getDate() + (parseInt(wForm.numberOfDays) || 7) - 1);
+    d.setDate(d.getDate() + days - 1);
     return d.toISOString().split('T')[0];
   })();
 
@@ -328,7 +364,13 @@ export function AdminSettings() {
       {activeTab === 'general' && (
         <div className="space-y-6">
           <div className="bg-card rounded-xl p-6 border border-border">
-            <div className="flex items-center gap-3 mb-6"><Calendar className="w-6 h-6 text-primary" /><h2 className="text-xl">Workshop Configuration</h2></div>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3"><Calendar className="w-6 h-6 text-primary" /><h2 className="text-xl">Workshop Configuration</h2></div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Active: {workshop.name}</span>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{workshop.numberOfDays} Days</span>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block mb-2 text-sm">Start Date</label>
@@ -350,9 +392,14 @@ export function AdminSettings() {
                   className="w-full px-4 py-2 rounded-lg bg-input-background border border-border focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
             </div>
-            <button onClick={saveWorkshop} className="mt-6 bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-all inline-flex items-center gap-2">
-              <Save className="w-4 h-4" /> Save Workshop Config
-            </button>
+            <div className="mt-6 flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Last updated: {workshop.startDate.toLocaleDateString()} • {workshop.numberOfDays} days • {workshop.venue}
+              </div>
+              <button onClick={saveWorkshop} className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-all inline-flex items-center gap-2">
+                <Save className="w-4 h-4" /> Save & Sync Workshop Config
+              </button>
+            </div>
           </div>
 
           <div className="bg-card rounded-xl p-6 border border-border">

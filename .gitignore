@@ -1,1 +1,9 @@
 node_modules
+dist
+.env
+*.log
+.DS_Store
+.vscode
+.windsurf
+pnpm-lock.yaml
+package-lock.json

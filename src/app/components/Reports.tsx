@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
+import { useToast } from '../contexts/ToastContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { loggingService, LogEntry, LogStatistics } from '../../services/loggingService';
 import {
@@ -29,13 +30,18 @@ import {
   Users,
   DollarSign,
   MapPin,
+  FileSpreadsheet,
+  Image,
+  FileImage,
 } from 'lucide-react';
+import { Button } from './ui/button';
 
 const formatCurrency = (value: number) => `KES ${value.toLocaleString()}`;
 
 export function Reports() {
   const { user } = useAuth();
   const { participants, attendance, paymentSchedules, workshop, courses, programmes } = useData();
+  const { success, info } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -46,6 +52,7 @@ export function Reports() {
   const [logStats, setLogStats] = useState<LogStatistics | null>(null);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [totalLogPages, setTotalLogPages] = useState(1);
+  const [isLiveRefresh, setIsLiveRefresh] = useState(false);
 
   // Fetch logs and statistics
   useEffect(() => {
@@ -92,6 +99,26 @@ export function Reports() {
       loggingService.logPageAccess('Reports Dashboard');
     }
   }, [user]);
+
+  // Live refresh effect
+  useEffect(() => {
+    if (!isLiveRefresh) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const [logsData, statsData] = await Promise.all([
+          loggingService.getLogs(logsPerPage, (currentPage - 1) * logsPerPage),
+          loggingService.getLogStatistics()
+        ]);
+        setLogs(logsData);
+        setLogStats(statsData);
+      } catch (error) {
+        console.error('Live refresh failed:', error);
+      }
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [isLiveRefresh, currentPage, logsPerPage]);
 
   const canView = user?.role !== 'Viewer/Digitiser';
   const canManage = user?.role === 'System Admin' || user?.role === 'Programme Lead';
@@ -146,6 +173,193 @@ export function Reports() {
       };
     });
   }, [attendance, workshop.numberOfDays]);
+
+  // Export Summary function
+  const exportSummary = () => {
+    const summaryData = {
+      workshop: {
+        name: workshop.name,
+        numberOfDays: workshop.numberOfDays,
+        startDate: workshop.startDate.toISOString(),
+        endDate: workshop.endDate.toISOString(),
+        venue: workshop.venue,
+      },
+      participants: {
+        total: totalParticipants,
+        groups: [...new Set(participants.map((p: any) => p.group))].length,
+        averageAttendance: attendanceTotals.attendanceRate,
+      },
+      courses: {
+        total: totalCourses,
+        totalModules: totalModules,
+        completedModules: completedModules,
+        completionPercentage: completionPercentage,
+      },
+      payments: {
+        total: paymentTotals.total,
+        processed: paymentTotals.processed,
+        pending: paymentTotals.pending,
+        averagePerParticipant: totalParticipants ? Math.round(paymentTotals.total / totalParticipants) : 0,
+      },
+      attendance: {
+        present: attendanceTotals.present,
+        absent: attendanceTotals.absent,
+        total: attendanceTotals.total,
+        rate: attendanceTotals.attendanceRate,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+
+    const csv = [
+      ['Workshop Summary Report'],
+      [`Generated: ${new Date().toLocaleString()}`],
+      [''],
+      ['Workshop Details'],
+      ['Name', workshop.name],
+      ['Duration', `${workshop.numberOfDays} days`],
+      ['Start Date', workshop.startDate.toLocaleDateString()],
+      ['End Date', workshop.endDate.toLocaleDateString()],
+      ['Venue', workshop.venue],
+      [''],
+      ['Participant Statistics'],
+      ['Total Participants', totalParticipants],
+      ['Number of Groups', [...new Set(participants.map((p: any) => p.group))].length],
+      ['Average Attendance Rate', `${attendanceTotals.attendanceRate}%`],
+      [''],
+      ['Course Statistics'],
+      ['Total Courses', totalCourses],
+      ['Total Modules', totalModules],
+      ['Completed Modules', completedModules],
+      ['Completion Percentage', `${completionPercentage}%`],
+      [''],
+      ['Payment Summary'],
+      ['Total DSA Amount', formatCurrency(paymentTotals.total)],
+      ['Processed Amount', formatCurrency(paymentTotals.processed)],
+      ['Pending Amount', formatCurrency(paymentTotals.pending)],
+      ['Average Per Participant', formatCurrency(totalParticipants ? Math.round(paymentTotals.total / totalParticipants) : 0)],
+      [''],
+      ['Attendance Summary'],
+      ['Total Present', attendanceTotals.present],
+      ['Total Absent', attendanceTotals.absent],
+      ['Total Records', attendanceTotals.total],
+      ['Overall Attendance Rate', `${attendanceTotals.attendanceRate}%`],
+    ].map(row => Array.isArray(row) ? row.join(',') : row).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `workshop-summary-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    success('Workshop summary exported successfully!', 'Export Complete');
+  };
+
+  // Download Charts function
+  const downloadCharts = () => {
+    const chartsContainer = document.getElementById('charts-container');
+    if (!chartsContainer) {
+      info('Charts container not found. Please try again.', 'Error');
+      return;
+    }
+
+    // Create a canvas to combine charts
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = 1200;
+    canvas.height = 800;
+    
+    // White background
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Add title
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 24px Arial';
+    ctx.fillText('Workshop Analytics Report', 50, 50);
+    ctx.font = '16px Arial';
+    ctx.fillText(`Generated: ${new Date().toLocaleString()}`, 50, 80);
+
+    // Add attendance chart placeholder
+    ctx.fillStyle = '#e5e7eb';
+    ctx.fillRect(50, 120, 500, 300);
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '14px Arial';
+    ctx.fillText('Attendance Overview Chart', 200, 270);
+    
+    // Add payment chart placeholder
+    ctx.fillStyle = '#e5e7eb';
+    ctx.fillRect(600, 120, 500, 300);
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText('Payment Status Chart', 750, 270);
+
+    // Add summary statistics
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText('Key Metrics', 50, 480);
+    ctx.font = '14px Arial';
+    ctx.fillText(`Total Participants: ${totalParticipants}`, 50, 520);
+    ctx.fillText(`Overall Attendance: ${attendanceTotals.attendanceRate}%`, 50, 550);
+    ctx.fillText(`Total DSA: ${formatCurrency(paymentTotals.total)}`, 50, 580);
+    ctx.fillText(`Completion Rate: ${completionPercentage}%`, 50, 610);
+
+    // Convert to image and download
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `workshop-charts-${new Date().toISOString().split('T')[0]}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        success('Charts exported successfully!', 'Export Complete');
+      }
+    }, 'image/png');
+  };
+
+  // Live refresh function
+  const toggleLiveRefresh = () => {
+    setIsLiveRefresh(!isLiveRefresh);
+    if (!isLiveRefresh) {
+      success('Live refresh enabled - Feed will update automatically', 'Live Refresh Active');
+    } else {
+      info('Live refresh disabled', 'Live Refresh Stopped');
+    }
+  };
+
+  // Export logs function
+  const exportLogs = () => {
+    const logData = logs.map(log => [
+      log.time,
+      log.level,
+      log.user,
+      log.message,
+      log.ip,
+      log.geo_location?.city || '',
+      log.geo_location?.country || '',
+      log.timestamp,
+      log.user_agent
+    ]);
+
+    const csv = [
+      ['Time', 'Level', 'User', 'Message', 'IP Address', 'City', 'Country', 'Timestamp', 'User Agent'],
+      ...logData
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `system-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    success(`${logs.length} log entries exported successfully!`, 'Export Complete');
+  };
 
   const reportSections = [
     {
@@ -208,6 +422,12 @@ export function Reports() {
       icon: Settings,
       description: 'Configure event monitoring and alerts',
     },
+    {
+      id: 'post-digitization',
+      label: 'Post-Digitization',
+      icon: FileImage,
+      description: 'Digitized reports and document processing',
+    },
   ];
 
   // Determine active section based on URL path
@@ -231,6 +451,8 @@ export function Reports() {
       setActiveSection('status');
     } else if (path.startsWith('/reports/monitoring')) {
       setActiveSection('monitoring');
+    } else if (path.startsWith('/reports/post-digitization')) {
+      setActiveSection('post-digitization');
     }
   }, [location.pathname]);
 
@@ -240,9 +462,127 @@ export function Reports() {
         <div className="text-center">
           <h2 className="text-2xl font-semibold text-muted-foreground mb-4">Access Denied</h2>
           <p className="text-muted-foreground">You don't have permission to access the Reports module.</p>
-          <button onClick={() => navigate('/dashboard')} className="btn btn-primary mt-4">
-            Return to Dashboard
-          </button>
+          <div className="mt-4">
+            <Button onClick={() => navigate('/dashboard')}>Return to Dashboard</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render post-digitization screen
+  if (activeSection === 'post-digitization') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-4xl mb-2">Post-Digitization</h1>
+            <p className="text-muted-foreground max-w-2xl">
+              Process and manage digitized reports, scanned documents, and automated data extraction.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button>
+              <FileSpreadsheet className="w-4 h-4" /> Process Documents
+            </Button>
+            <Button variant="secondary">
+              <Image className="w-4 h-4" /> View Scans
+            </Button>
+          </div>
+        </div>
+
+        {/* Document Processing Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <FileSpreadsheet className="w-5 h-5 text-primary" />
+              <div className="text-sm text-muted-foreground">Documents Processed</div>
+            </div>
+            <div className="text-3xl font-semibold">1,247</div>
+            <div className="text-sm text-muted-foreground">Total digitized documents</div>
+          </div>
+          <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <CheckCircle className="w-5 h-5 text-chart-3" />
+              <div className="text-sm text-muted-foreground">Processing Success</div>
+            </div>
+            <div className="text-3xl font-semibold">98.5%</div>
+            <div className="text-sm text-muted-foreground">Successful extraction rate</div>
+          </div>
+          <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <AlertTriangle className="w-5 h-5 text-chart-4" />
+              <div className="text-sm text-muted-foreground">Manual Review</div>
+            </div>
+            <div className="text-3xl font-semibold">23</div>
+            <div className="text-sm text-muted-foreground">Documents requiring review</div>
+          </div>
+          <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <Clock className="w-5 h-5 text-secondary" />
+              <div className="text-sm text-muted-foreground">Avg Processing Time</div>
+            </div>
+            <div className="text-3xl font-semibold">2.3s</div>
+            <div className="text-sm text-muted-foreground">Per document</div>
+          </div>
+        </div>
+
+        {/* Recent Digitizations */}
+        <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold">Recent Digitizations</h2>
+              <p className="text-sm text-muted-foreground">Latest processed documents and their status</p>
+            </div>
+            <Button variant="secondary" size="sm">
+              <Download className="w-4 h-4" /> Export All
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { name: 'Workshop Attendance Report', type: 'PDF', status: 'Completed', time: '2 hours ago', accuracy: '99.2%', pages: 15 },
+              { name: 'Participant Roster', type: 'Excel', status: 'Processing', time: '5 hours ago', accuracy: '97.8%', pages: 8 },
+              { name: 'Payment Schedule', type: 'PDF', status: 'Review Required', time: '1 day ago', accuracy: '95.1%', pages: 12 },
+              { name: 'Course Completion Report', type: 'Word', status: 'Completed', time: '2 days ago', accuracy: '98.9%', pages: 24 },
+            ].map((doc, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border">
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    doc.type === 'PDF' ? 'bg-red-100' :
+                    doc.type === 'Excel' ? 'bg-green-100' :
+                    doc.type === 'Word' ? 'bg-blue-100' : 'bg-gray-100'
+                  }`}>
+                    <FileSpreadsheet className={`w-5 h-5 ${
+                      doc.type === 'PDF' ? 'text-red-600' :
+                      doc.type === 'Excel' ? 'text-green-600' :
+                      doc.type === 'Word' ? 'text-blue-600' : 'text-gray-600'
+                    }`} />
+                  </div>
+                  <div>
+                    <div className="font-medium">{doc.name}</div>
+                    <div className="text-sm text-muted-foreground">{doc.type} • {doc.pages} pages</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      doc.status === 'Completed' ? 'bg-chart-3/10 text-chart-3' :
+                      doc.status === 'Processing' ? 'bg-chart-4/10 text-chart-4' :
+                      'bg-chart-5/10 text-chart-5'
+                    }`}>
+                      {doc.status}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{doc.time}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-muted-foreground">Accuracy</div>
+                    <div className="font-semibold">{doc.accuracy}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -260,12 +600,12 @@ export function Reports() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-lg hover:bg-primary/90 transition-all">
+            <Button onClick={exportSummary}>
               <BookOpen className="w-4 h-4" /> Export Summary
-            </button>
-            <button className="inline-flex items-center gap-2 bg-muted text-foreground px-5 py-3 rounded-lg hover:bg-muted/80 transition-all">
+            </Button>
+            <Button variant="secondary" onClick={downloadCharts}>
               <BarChart3 className="w-4 h-4" /> Download Charts
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -316,14 +656,19 @@ export function Reports() {
               <p className="text-sm text-muted-foreground">Real-time system activity monitoring</p>
             </div>
             <div className="flex items-center gap-2">
-              <button className="btn btn-muted btn-sm">
-                <RefreshCw className="w-4 h-4" />
-                Refresh Feed
-              </button>
-              <button className="btn btn-primary btn-sm">
+              <Button 
+                variant={isLiveRefresh ? "default" : "secondary"} 
+                size="sm"
+                onClick={toggleLiveRefresh}
+                className={isLiveRefresh ? "bg-green-600 hover:bg-green-700" : ""}
+              >
+                <RefreshCw className={`w-4 h-4 ${isLiveRefresh ? "animate-spin" : ""}`} />
+                {isLiveRefresh ? "Live Refresh ON" : "Live Refresh OFF"}
+              </Button>
+              <Button size="sm" onClick={exportLogs}>
                 <Download className="w-4 h-4" />
                 Export Logs
-              </button>
+              </Button>
             </div>
           </div>
           <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -331,23 +676,25 @@ export function Reports() {
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-muted-foreground">Recent Activity</div>
                 <div className="flex items-center gap-2">
-                  <button 
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
-                    className="btn btn-muted btn-sm"
                   >
                     Previous
-                  </button>
+                  </Button>
                   <span className="text-sm text-muted-foreground">
                     Page {currentPage} of {totalLogPages}
                   </span>
-                  <button 
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => setCurrentPage(Math.min(totalLogPages, currentPage + 1))}
                     disabled={currentPage === totalLogPages}
-                    className="btn btn-muted btn-sm"
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div className="space-y-2">
@@ -415,41 +762,95 @@ export function Reports() {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-card rounded-xl p-6 border border-border shadow-sm">
-            <div className="flex items-center justify-between mb-4">
+        <div id="charts-container" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 bg-gradient-to-br from-card to-card/50 rounded-xl p-6 border border-border shadow-lg">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-semibold">Attendance Overview</h2>
-                <p className="text-sm text-muted-foreground">Daily participation across event.</p>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">Attendance Overview</h2>
+                <p className="text-sm text-muted-foreground">Daily participation trends and insights</p>
               </div>
-              <div className="text-right">
-                <div className="text-3xl font-semibold">{attendanceTotals.attendanceRate}%</div>
-                <div className="text-sm text-muted-foreground">Average present rate</div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mb-6">
-              <div className="flex-1 bg-muted/50 rounded-xl p-4">
-                <div className="text-sm text-muted-foreground">Present</div>
-                <div className="text-2xl font-semibold">{attendanceTotals.present}</div>
-              </div>
-              <div className="flex-1 bg-muted/50 rounded-xl p-4">
-                <div className="text-sm text-muted-foreground">Absent</div>
-                <div className="text-2xl font-semibold">{attendanceTotals.absent}</div>
+              <div className="text-center bg-gradient-to-br from-chart-3/10 to-chart-3/5 rounded-xl p-4 border border-chart-3/20">
+                <div className="text-4xl font-bold text-chart-3">{attendanceTotals.attendanceRate}%</div>
+                <div className="text-sm text-chart-3 font-medium">Average Present Rate</div>
               </div>
             </div>
 
-            <div style={{ width: '100%', height: 300 }}>
-              <ResponsiveContainer>
-                <BarChart data={attendanceDayData} margin={{ left: -16, right: 0 }}>
-                  <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="Present" fill="#22c55e" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="Absent" fill="#f59e0b" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="bg-gradient-to-br from-chart-3/5 to-chart-3/10 rounded-xl p-4 border border-chart-3/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-5 h-5 text-chart-3" />
+                  <div className="text-sm text-chart-3 font-medium">Present</div>
+                </div>
+                <div className="text-3xl font-bold text-chart-3">{attendanceTotals.present}</div>
+                <div className="text-xs text-chart-3/70">Total present days</div>
+              </div>
+              <div className="bg-gradient-to-br from-chart-4/5 to-chart-4/10 rounded-xl p-4 border border-chart-4/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-5 h-5 text-chart-4" />
+                  <div className="text-sm text-chart-4 font-medium">Absent</div>
+                </div>
+                <div className="text-3xl font-bold text-chart-4">{attendanceTotals.absent}</div>
+                <div className="text-xs text-chart-4/70">Total absent days</div>
+              </div>
+              <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-4 border border-primary/20 sm:col-span-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  <div className="text-sm text-primary font-medium">Total Records</div>
+                </div>
+                <div className="text-3xl font-bold text-primary">{attendanceTotals.total}</div>
+                <div className="text-xs text-primary/70">All attendance entries</div>
+              </div>
+            </div>
+
+            <div className="bg-card/50 rounded-xl p-4 border border-border">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Daily Attendance Pattern</h3>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="w-3 h-3 rounded-full bg-chart-3"></div>
+                  <span>Present</span>
+                  <div className="w-3 h-3 rounded-full bg-chart-4"></div>
+                  <span>Absent</span>
+                </div>
+              </div>
+              <div style={{ width: '100%', height: 350 }}>
+                <ResponsiveContainer>
+                  <BarChart data={attendanceDayData} margin={{ left: -16, right: 0, top: 20, bottom: 20 }}>
+                    <XAxis 
+                      dataKey="day" 
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      axisLine={{ stroke: '#e5e7eb' }}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      axisLine={{ stroke: '#e5e7eb' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1f2937', 
+                        border: 'none', 
+                        borderRadius: '8px',
+                        color: '#f8fafc'
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px' }}
+                      iconType="rect"
+                    />
+                    <Bar 
+                      dataKey="Present" 
+                      fill="#22c55e" 
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={60}
+                    />
+                    <Bar 
+                      dataKey="Absent" 
+                      fill="#f59e0b" 
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={60}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 

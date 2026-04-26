@@ -114,25 +114,24 @@
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
-  border: 1px solid #d9e6ea;
-  border-top: 2px solid #037b90;
-  background: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
   border-radius: 999px;
   padding: 0.35rem 0.75rem 0.35rem 0.4rem;
-  box-shadow: 0 6px 16px -14px rgba(2, 6, 23, 0.4);
+  box-shadow: 0 10px 24px -18px rgba(2, 6, 23, 0.55);
   transition: box-shadow 0.2s ease, transform 0.15s ease;
 }
 
 .moodle-profile-trigger:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 20px -16px rgba(3, 123, 144, 0.4);
+  box-shadow: 0 16px 30px -22px rgba(3, 123, 144, 0.35), 0 14px 34px -26px rgba(255, 127, 80, 0.3);
 }
 
 .moodle-avatar {
   width: 2rem;
   height: 2rem;
   border-radius: 999px;
-  background: linear-gradient(135deg, #037b90, #0ea5a0);
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -144,41 +143,19 @@
 .moodle-profile-menu {
   position: absolute;
   right: 0;
-  top: calc(100% + 0.6rem);
+  top: calc(100% + 0.4rem);
   min-width: 290px;
   width: 290px;
-  background: #ffffff;
-  border: 1px solid #d8e6ea;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   border-radius: 0.9rem;
-  box-shadow: 0 20px 42px -24px rgba(2, 6, 23, 0.5), 0 8px 20px -16px rgba(3, 123, 144, 0.25);
+  box-shadow: 0 26px 60px -32px rgba(2, 6, 23, 0.65), 0 18px 44px -32px rgba(3, 123, 144, 0.35);
   overflow: hidden;
   z-index: 70;
 }
 
-.moodle-profile-head {
-  padding: 0.95rem;
-  background: linear-gradient(180deg, #f8fbfc 0%, #ffffff 100%);
-  border-bottom: 1px solid #e6eff2;
-}
-
-.moodle-profile-user {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  margin-bottom: 0.8rem;
-}
-
-.moodle-avatar-lg {
-  width: 2.45rem;
-  height: 2.45rem;
-  font-size: 0.96rem;
-  box-shadow: 0 0 0 2px #e8f2f4;
-}
-
-.moodle-greeting {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #0f172a;
+.moodle-profile-meta-sep {
+  opacity: 0.7;
 }
 
 .moodle-profile-role {
@@ -191,6 +168,24 @@
   padding: 0.45rem 0.5rem 0.55rem;
 }
 
+.moodle-profile-context {
+  padding: 0.45rem 0.6rem 0.6rem;
+  margin: 0.25rem 0.15rem 0.35rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.moodle-profile-context-email {
+  max-width: 175px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .moodle-profile-item {
   width: 100%;
   border: none;
@@ -201,20 +196,20 @@
   padding: 0.72rem 0.85rem;
   font-size: 0.92rem;
   font-weight: 500;
-  color: #0f172a;
+  color: var(--foreground);
   text-align: left;
   border-radius: 0.62rem;
   transition: background-color 0.16s ease, color 0.16s ease;
 }
 
 .moodle-profile-icon {
-  color: #037b90;
+  color: var(--primary);
   opacity: 0.88;
 }
 
 .moodle-profile-item:hover {
-  background: #eef8fa;
-  color: #035969;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: color-mix(in srgb, var(--foreground) 92%, var(--primary));
 }
 
 .moodle-profile-item-danger {

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { queryClient } from '../hooks/useApiQuery';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import { RecycleBinProvider } from './contexts/RecycleBinContext';
@@ -11,20 +12,7 @@ import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
 
-// Create a client for React Query
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes (renamed from cacheTime)
-      retry: 3,
-      refetchOnWindowFocus: false,
-    },
-    mutations: {
-      retry: 1,
-    },
-  },
-});
+
 
 /** Dynamic routes with role-based access control */
 function ProtectedRoutes() {
@@ -83,11 +71,11 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <RecycleBinProvider>
-          <DataProvider>
-            <AuthProvider>
+          <AuthProvider>
+            <DataProvider>
               <AppRoutes />
-            </AuthProvider>
-          </DataProvider>
+            </DataProvider>
+          </AuthProvider>
         </RecycleBinProvider>
       </ToastProvider>
       <ReactQueryDevtools initialIsOpen={false} />

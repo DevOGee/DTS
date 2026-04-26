@@ -1,69 +1,53 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '../data/mockData';
-import { useData } from './DataContext';
-
-const AUTH_STORAGE_KEY = 'dts_auth_user_id';
+import { useLogin, useLogout, useCurrentUser } from '../../hooks/useApiQuery';
+import { User } from '../../services/apiService';
 
 interface AuthContextType {
   user: User | null;
-  login: (identifier: string, password: string) => boolean;
-  impersonate: (userId: string) => void;
+  login: (identifier: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { users } = useData();
+  const [user, setUser] = useState<User | null>(null);
+  const loginMutation = useLogin();
+  const logoutMutation = useLogout();
+  const { data: currentUser, isLoading } = useCurrentUser();
 
-  // Restore session from localStorage on mount
-  const [user, setUser] = useState<User | null>(() => {
-    const savedId = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!savedId) return null;
-    // users may not be loaded yet from localStorage — parse directly
-    const raw = localStorage.getItem('dts_app_state');
-    if (!raw) return null;
-    try {
-      const state = JSON.parse(raw);
-      return (state.users as User[])?.find((u: User) => u.id === savedId) ?? null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Keep localStorage in sync whenever the user state changes
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(AUTH_STORAGE_KEY, user.id);
-    } else {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+    if (currentUser) {
+      setUser(currentUser);
     }
-  }, [user]);
+  }, [currentUser]);
 
-  const login = (identifier: string, password: string) => {
-    const foundUser = users.find(
-      (u) => (u.username === identifier || u.email === identifier) && u.password === password
-    );
-    if (foundUser) {
-      setUser(foundUser);
+  const login = async (identifier: string, password: string): Promise<boolean> => {
+    try {
+      await loginMutation.mutateAsync({ identifier, password });
       return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
     }
-    return false;
   };
 
-  const impersonate = (userId: string) => {
-    const target = users.find((u) => u.id === userId);
-    if (target) setUser(target);
+  const logout = () => {
+    logoutMutation.mutate();
+    setUser(null);
   };
 
-  const logout = () => setUser(null);
+  const value = {
+    user,
+    login,
+    logout,
+    isAuthenticated: !!user,
+    isLoading: isLoading || loginMutation.isPending
+  };
 
-  return (
-    <AuthContext.Provider value={{ user, login, impersonate, logout, isAuthenticated: !!user }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

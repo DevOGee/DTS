@@ -14,6 +14,10 @@ export function Payments() {
   const [editing, setEditing] = useState<PaymentSchedule | null>(null);
   const [editForm, setEditForm] = useState<Partial<PaymentSchedule>>({});
   const { success } = useToast();
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const recordsPerPage = 10;
 
   const canEdit = (g: Group) => user?.role === 'System Admin' || user?.role === 'Programme Lead' || (user?.role === 'Group Leader' && user.group === g);
 
@@ -27,6 +31,20 @@ export function Payments() {
       (filterGroup === 'all' || p.group === filterGroup) &&
       (filterStatus === 'all' || ps.status === filterStatus);
   }), [paymentSchedules, participants, search, filterGroup, filterStatus]);
+
+  // Pagination logic
+  const paginatedPayments = useMemo(() => {
+    const startIndex = (currentPage - 1) * recordsPerPage;
+    const endIndex = startIndex + recordsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  }, [filtered, currentPage]);
+
+  const totalPages = Math.ceil(filtered.length / recordsPerPage);
+
+  // Reset page when filters change
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [search, filterGroup, filterStatus]);
 
   const totalAmt = filtered.reduce((s, ps) => s + ps.amount, 0);
   const processedAmt = filtered.filter(ps => ps.status !== 'Pending').reduce((s, ps) => s + ps.amount, 0);
@@ -130,7 +148,7 @@ export function Payments() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(ps => {
+              {paginatedPayments.map(ps => {
                 const p = participantOf(ps);
                 if (!p) return null;
                 return (
@@ -163,7 +181,7 @@ export function Payments() {
 
         {/* Mobile */}
         <div className="md:hidden divide-y divide-border">
-          {filtered.map(ps => {
+          {paginatedPayments.map(ps => {
             const p = participantOf(ps);
             if (!p) return null;
             return (
@@ -189,10 +207,67 @@ export function Payments() {
           })}
         </div>
 
-        <div className="px-5 py-3 border-t border-border flex justify-between text-xs text-muted-foreground">
-          <span>Showing {filtered.length} of {paymentSchedules.length}</span>
-          <span>Total: KES {totalAmt.toLocaleString()}</span>
+        <div className="px-5 py-3 border-t border-border text-xs text-muted-foreground">
+          Showing {((currentPage - 1) * recordsPerPage) + 1}-{Math.min(currentPage * recordsPerPage, filtered.length)} of {filtered.length} payment records • Total: KES {totalAmt.toLocaleString()}
         </div>
+        
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="px-5 py-4 border-t border-border">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-8 h-8 text-sm rounded-lg transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-primary text-primary-foreground'
+                            : 'border border-border hover:bg-muted'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Edit modal */}

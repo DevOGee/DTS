@@ -27,6 +27,8 @@ import { mockChecklistItems, ChecklistItem } from '../data/checklistData';
 import { mockVideoLogs, mockGroupVideoStats, VideoLog, GroupVideoStats } from '../data/multimediaData';
 import { useRecycleBin } from './RecycleBinContext';
 import { validateWorkshop } from '../utils/workshopValidation';
+import { useUsers, useGroups, useCourses } from '../../hooks/useApiQuery';
+import { useAuth } from './AuthContext';
 
 const STORAGE_KEY = 'dts_app_state';
 const DATA_VERSION = '2.1'; // Increment to force cache refresh
@@ -143,13 +145,49 @@ const loadInitialState = () => {
 export function DataProvider({ children }: { children: ReactNode }) {
   const initialState = loadInitialState();
   const { addToRecycleBin } = useRecycleBin();
+  const { isAuthenticated } = useAuth();
+
+  // React Query Hooks
+  const { data: apiUsersData } = useUsers(undefined, { enabled: isAuthenticated });
+  const { data: apiGroupsData } = useGroups();
+  const { data: apiCoursesData } = useCourses(undefined, { enabled: isAuthenticated });
 
   const [users, setUsers] = useState<User[]>(initialState?.users ?? mockUsers);
   const [groups, setGroups] = useState<string[]>(initialState?.groups ?? [...DEFAULT_GROUPS]);
+  const [courses, setCourses] = useState<Course[]>(initialState?.courses ?? allMockCourses);
+
+  // Sync API data to state when it arrives
+  useEffect(() => {
+    if (apiUsersData && (apiUsersData as any).data) {
+      const transformed = (apiUsersData as any).data.map((u: any) => ({
+        ...u,
+        group: u.group?.name || u.group_id // Support both structures
+      }));
+      setUsers(transformed);
+    }
+  }, [apiUsersData]);
+
+  useEffect(() => {
+    if (apiGroupsData) {
+      setGroups(apiGroupsData.map((g: any) => g.name));
+    }
+  }, [apiGroupsData]);
+
+  useEffect(() => {
+    if (apiCoursesData && (apiCoursesData as any).data) {
+      const transformed = (apiCoursesData as any).data.map((c: any) => ({
+        ...c,
+        completedModules: c.completed_modules,
+        totalModules: c.total_modules,
+        assignedGroup: c.assigned_group?.name || c.assigned_group_id || 'A'
+      }));
+      setCourses(transformed);
+    }
+  }, [apiCoursesData]);
+
   const [workshop, setWorkshop] = useState<Workshop>(initialState?.workshop ?? mockWorkshop);
   const [workshops, setWorkshops] = useState<Workshop[]>(initialState?.workshops ?? mockWorkshops);
   const [programmes, setProgrammes] = useState<Programme[]>(initialState?.programmes ?? mockProgrammes);
-  const [courses, setCourses] = useState<Course[]>(initialState?.courses ?? allMockCourses);
   const [participants, setParticipants] = useState<Participant[]>(initialState?.participants ?? mockParticipants);
   const [attendance, setAttendance] = useState<Attendance[]>(initialState?.attendance ?? mockAttendance);
   const [paymentSchedules, setPaymentSchedules] = useState<PaymentSchedule[]>(initialState?.paymentSchedules ?? mockPaymentSchedules);

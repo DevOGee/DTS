@@ -12,11 +12,12 @@ export function Login({ onBackToHome }: LoginProps = {}) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { login } = useAuth();
+  const { login, isLoading } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(identifier.trim(), password);
+    setError('');
+    const success = await login(identifier.trim(), password);
     if (!success) {
       setError('Invalid username or password');
     }
@@ -95,9 +96,10 @@ export function Login({ onBackToHome }: LoginProps = {}) {
 
             <button
               type="submit"
-              className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl"
+              disabled={isLoading}
+              className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
+              {isLoading ? 'Signing In...' : 'Sign In'}
             </button>
 
             <div className="text-sm text-muted-foreground text-center">

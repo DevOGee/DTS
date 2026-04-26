@@ -5,6 +5,46 @@ import { Calendar, Users, User, BookOpen, Target, TrendingUp, Clock, MapPin, Act
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Group, mockProgrammes } from '../data/mockData';
+import { QuickActions } from './dashboard/QuickActions';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from './ui/chart';
+
+// 3D Effects CSS
+const style3D = `
+  .transform-gpu {
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+  
+  .drop-shadow-lg {
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+  }
+  
+  .progress-center-orbit {
+    animation: orbit 20s linear infinite;
+    transform-style: preserve-3d;
+  }
+  
+  @keyframes orbit {
+    from { transform: rotateY(0deg); }
+    to { transform: rotateY(360deg); }
+  }
+  
+  .progress-percentage-text {
+    background: linear-gradient(45deg, #037b90, #0ea5e9);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 10px rgba(3, 123, 144, 0.3);
+  }
+`;
+
+// Add 3D CSS to document head
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = style3D;
+  document.head.appendChild(style);
+}
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -14,17 +54,9 @@ export function Dashboard() {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<Group | 'all'>('all');
   const [selectedProgramme, setSelectedProgramme] = useState<string>('all');
+  const [selectedDay, setSelectedDay] = useState<number>(1);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [profileName, setProfileName] = useState(user?.name ?? '');
-  const [profileEmail, setProfileEmail] = useState(user?.email ?? '');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [profileError, setProfileError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
-
+  
   useEffect(() => {
     const calc = () => {
       const diff = new Date(workshop.endDate).getTime() - Date.now();
@@ -39,25 +71,6 @@ export function Dashboard() {
     const t = setInterval(calc, 1000);
     return () => clearInterval(t);
   }, [workshop]);
-
-  useEffect(() => {
-    setProfileName(user?.name ?? '');
-    setProfileEmail(user?.email ?? '');
-  }, [user]);
-
-  const showProfileModal = location.pathname === '/dashboard/update-profile';
-  const showPasswordModal = location.pathname === '/dashboard/change-password';
-
-  useEffect(() => {
-    const onClickOutside = (event: MouseEvent) => {
-      if (!profileMenuRef.current) return;
-      if (!profileMenuRef.current.contains(event.target as Node)) {
-        setShowProfileMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
 
   const stats = useMemo(() => {
     const totalModules = courses.length * 10;
@@ -78,6 +91,25 @@ export function Dashboard() {
       isOnTrack: completedModules >= expectedProgress,
     };
   }, [courses, workshop]);
+
+  useEffect(() => {
+    setSelectedDay(stats.currentDay);
+  }, [stats.currentDay]);
+
+  useEffect(() => {
+    const handleWorkshopSettingsChanged = (event: CustomEvent) => {
+      const { workshop: updatedWorkshop, changedFields } = event.detail;
+      console.log('Workshop settings changed:', updatedWorkshop, changedFields);
+      // The workshop data is already updated through DataContext
+      // This listener can be used for additional UI updates if needed
+    };
+
+    window.addEventListener('workshopSettingsChanged', handleWorkshopSettingsChanged as EventListener);
+    
+    return () => {
+      window.removeEventListener('workshopSettingsChanged', handleWorkshopSettingsChanged as EventListener);
+    };
+  }, []);
 
   const groupStats = useMemo(() => groups.map(group => {
     const gc = courses.filter(c => c.assignedGroup === group);
@@ -113,136 +145,59 @@ export function Dashboard() {
     navigate('/');
   };
 
-  const handleSaveProfile = () => {
-    if (!user) return;
-    const name = profileName.trim();
-    const email = profileEmail.trim();
-    if (!name || !email) {
-      setProfileError('Name and email are required.');
-      return;
-    }
-    updateUser({ ...user, name, email });
-    impersonate(user.id);
-    setProfileError('');
-    navigate('/dashboard');
-    setShowProfileMenu(false);
-  };
-
-  const handleChangePassword = () => {
-    if (!user) return;
-    if (currentPassword !== user.password) {
-      setPasswordError('Current password is incorrect.');
-      return;
-    }
-    if (newPassword.length < 4) {
-      setPasswordError('New password must be at least 4 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('New password and confirmation do not match.');
-      return;
-    }
-    updateUser({ ...user, password: newPassword });
-    impersonate(user.id);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordError('');
-    navigate('/dashboard');
-    setShowProfileMenu(false);
-  };
-
   return (
     <div className="space-y-8">
-      <div className="dashboard-top-nav rounded-xl bg-white px-4 py-3">
-        <div className="flex justify-end">
-          <div ref={profileMenuRef} className="relative">
-            <button
-              onClick={() => setShowProfileMenu((s) => !s)}
-              className="moodle-profile-trigger"
-              aria-label="Open profile menu"
-            >
-              <div className="moodle-avatar">{user?.name?.charAt(0)?.toUpperCase() ?? 'U'}</div>
-              <div className="text-left hidden sm:block">
-                <div className="text-sm font-semibold leading-none">{user?.name ?? 'User'}</div>
-                <div className="text-xs text-muted-foreground mt-1">{user?.role ?? 'Account'}</div>
-              </div>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showProfileMenu && (
-              <div className="moodle-profile-menu">
-                <div className="moodle-profile-head">
-                  <div className="moodle-profile-user">
-                    <div className="moodle-avatar moodle-avatar-lg">{user?.name?.charAt(0)?.toUpperCase() ?? 'C'}</div>
-                    <div>
-                      <div className="moodle-greeting">Hi, {user?.role ?? 'User'}!</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="moodle-profile-links">
-                  <button
-                    className="moodle-profile-item"
-                    onClick={() => {
-                      setProfileError('');
-                      navigate('/dashboard/update-profile');
-                      setShowProfileMenu(false);
-                    }}
-                  >
-                    <Settings className="h-4 w-4 moodle-profile-icon" />
-                    Update Profile
-                  </button>
-                  <button
-                    className="moodle-profile-item"
-                    onClick={() => {
-                      setPasswordError('');
-                      setCurrentPassword('');
-                      setNewPassword('');
-                      setConfirmPassword('');
-                      navigate('/dashboard/change-password');
-                      setShowProfileMenu(false);
-                    }}
-                  >
-                    <KeyRound className="h-4 w-4 moodle-profile-icon" />
-                    Change Password
-                  </button>
-                  <button className="moodle-profile-item" onClick={handleDashboardLogout}>
-                    <LogOut className="h-4 w-4 moodle-profile-icon" />
-                    Logout
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-primary/[0.07] via-card to-card p-6 md:p-8 shadow-[0_18px_40px_-26px_rgba(3,123,144,0.5)]">
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-chart-1/10 blur-3xl" />
-        <div className="relative flex items-center justify-between">
-        <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium tracking-wide text-primary">
-              <Activity className="h-3.5 w-3.5" />
-              LIVE DASHBOARD
+        <div className="relative flex flex-col gap-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium tracking-wide text-primary">
+                <Activity className="h-3.5 w-3.5" />
+                LIVE DASHBOARD
+              </div>
             </div>
-          <h1 className="text-4xl mb-2 mt-3 tracking-tight">{workshop.name}</h1>
-          <div className="flex items-center gap-4">
-            <p className="text-muted-foreground">Welcome back, {user?.name}</p>
-            <div className="news-ticker flex items-center gap-1.5 flex-1 max-w-md">
-              <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
-              <span className="news-ticker-content text-sm font-medium text-primary">📍 {workshop.venue}</span>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block relative z-40">
+                <div className="text-lg font-bold text-[#037b90] mb-2 font-['Quicksand']">Time Remaining</div>
+                <div
+                  className="text-2xl font-bold bg-gradient-to-r from-[#037b90]/10 to-[#ff7f50]/10 border border-[#037b90]/20 text-[#037b90] px-4 py-3 rounded-2xl inline-flex items-center gap-3 shadow-lg font-['Quicksand'] tracking-wide"
+                  aria-label="Time remaining"
+                  title="Time remaining"
+                >
+                  <Clock className="w-5 h-5 text-[#ff7f50] drop-shadow-lg" />
+                  {timeRemaining}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-6">
+            <div>
+            <h1 className="text-4xl mb-2 mt-3 tracking-tight">{workshop.name}</h1>
+            <div className="flex items-center gap-4">
+              <p className="text-muted-foreground">Welcome back, {user?.name}</p>
+              <div className="news-ticker flex items-center gap-1.5 flex-1 max-w-md">
+                <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
+                <span className="news-ticker-content text-sm font-medium text-primary">📍 {workshop.venue}</span>
+              </div>
+            </div>
+          </div>
+            <div className="text-right sm:hidden relative z-40">
+              <div className="text-base font-bold text-[#037b90] mb-2 font-['Quicksand']">Time Remaining</div>
+              <div
+                className="text-xl font-bold bg-gradient-to-r from-[#037b90]/10 to-[#ff7f50]/10 border border-[#037b90]/20 text-[#037b90] px-3 py-2 rounded-2xl inline-flex items-center gap-2 shadow-lg font-['Quicksand'] tracking-wide"
+                aria-label="Time remaining"
+                title="Time remaining"
+              >
+                <Clock className="w-4 h-4 text-[#ff7f50] drop-shadow-lg" />
+                {timeRemaining}
+              </div>
             </div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-sm text-muted-foreground mb-1">Time Remaining</div>
-            <div className="text-2xl font-mono bg-primary/10 border border-primary/15 text-primary px-4 py-2 rounded-xl inline-flex items-center gap-2 shadow-sm">
-            <Clock className="w-5 h-5" />{timeRemaining}
-          </div>
-        </div>
-      </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -252,7 +207,7 @@ export function Dashboard() {
           { label: 'Duration', value: `${workshop.numberOfDays} Days`, sub: `Day ${stats.currentDay} of ${workshop.numberOfDays}`, icon: Calendar, color: 'text-amber-600', gradient: 'from-amber-500/10 to-orange-500/10', borderHover: 'hover:border-amber-300/50' },
           { label: 'Daily Target', value: stats.dailyTarget, sub: stats.isOnTrack ? '✓ On Track' : 'Behind Schedule', icon: TrendingUp, color: stats.isOnTrack ? 'text-green-600' : 'text-rose-600', gradient: stats.isOnTrack ? 'from-green-500/10 to-emerald-500/10' : 'from-rose-500/10 to-red-500/10', borderHover: stats.isOnTrack ? 'hover:border-green-300/50' : 'hover:border-rose-300/50' },
         ].map(({ label, value, sub, icon: Icon, color, gradient, borderHover }) => (
-          <div key={label} className={`relative group bg-card/40 backdrop-blur-xl rounded-2xl p-6 border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${borderHover} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between min-h-[140px]`}>
+          <div key={label} className={`relative group bg-card/40 backdrop-blur-xl rounded-2xl p-6 border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${borderHover} hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between min-h-[140px]`}>
             {/* Subtle Gradient Overlay */}
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0`} />
             
@@ -273,74 +228,96 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)]">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold tracking-tight">Overall Progress</h2>
-            <div className="flex gap-2">
-              <select value={selectedGroup} onChange={e => { setSelectedGroup(e.target.value as Group | 'all'); setSelectedProgramme('all'); }}
-                aria-label="Filter overall progress by group"
-                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm shadow-sm">
-                <option value="all">All Groups</option>
-                {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
-              </select>
-              <select value={selectedProgramme} onChange={e => { setSelectedProgramme(e.target.value); setSelectedGroup('all'); }}
-                aria-label="Filter overall progress by programme"
-                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm shadow-sm">
-                <option value="all">All Programmes</option>
-                {mockProgrammes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)] backdrop-blur-xl transform-gpu">
+          {/* 3D Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 opacity-50 rounded-2xl"></div>
+          <div className="absolute inset-0 rounded-2xl border-2 border-white/20 shadow-inner"></div>
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">Overall Progress</h2>
+              <div className="flex gap-2">
+                <select value={selectedGroup} onChange={e => { setSelectedGroup(e.target.value as Group | 'all'); setSelectedProgramme('all'); }}
+                  aria-label="Filter overall progress by group"
+                  className="px-3 py-1.5 rounded-lg border border-border/50 bg-background/80 backdrop-blur-sm text-sm shadow-lg hover:shadow-xl transition-all duration-300">
+                  <option value="all">All Groups</option>
+                  {groups.map(g => <option key={g} value={g}>Group {g}</option>)}
+                </select>
+                <select value={selectedProgramme} onChange={e => { setSelectedProgramme(e.target.value); setSelectedGroup('all'); }}
+                  aria-label="Filter overall progress by programme"
+                  className="px-3 py-1.5 rounded-lg border border-border/50 bg-background/80 backdrop-blur-sm text-sm shadow-lg hover:shadow-xl transition-all duration-300">
+                  <option value="all">All Programmes</option>
+                  {mockProgrammes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
             </div>
-          </div>
-          <div className="relative">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={2} dataKey="value">
-                  {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="progress-center-orbit"
-                style={{ ['--progress-angle' as string]: `${filteredStats.completionPercentage * 3.6}deg` }}
-              >
-                <div className="text-center">
-                  <div className="text-5xl mb-1 progress-percentage-text">{filteredStats.completionPercentage}%</div>
-                  <div className="text-sm text-muted-foreground">Complete</div>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={2} dataKey="value">
+                    {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div
+                  className="progress-center-orbit"
+                  style={{ ['--progress-angle' as string]: `${filteredStats.completionPercentage * 3.6}deg` }}
+                >
+                  <div className="text-center">
+                    <div className="text-5xl mb-1 progress-percentage-text">{filteredStats.completionPercentage}%</div>
+                    <div className="text-sm text-muted-foreground">Complete</div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="text-center rounded-xl border border-emerald-300/40 bg-emerald-500/5 p-3">
-              <div className="text-2xl text-emerald-600">{filteredStats.completedModules}</div>
-              <div className="text-sm text-muted-foreground">Completed</div>
+            <div className="text-center rounded-xl border border-emerald-300/40 bg-emerald-500/5 p-3 backdrop-blur-sm hover:scale-105 transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-transparent rounded-xl"></div>
+              <div className="relative">
+                <div className="text-2xl font-bold text-emerald-600">{filteredStats.completedModules}</div>
+                <div className="text-sm text-muted-foreground">Completed</div>
+              </div>
             </div>
-            <div className="text-center rounded-xl border border-slate-300/40 bg-slate-500/5 p-3">
-              <div className="text-2xl">{filteredStats.totalModules - filteredStats.completedModules}</div>
-              <div className="text-sm text-muted-foreground">Remaining</div>
+            <div className="text-center rounded-xl border border-slate-300/40 bg-slate-500/5 p-3 backdrop-blur-sm hover:scale-105 transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-400/20 to-transparent rounded-xl"></div>
+              <div className="relative">
+                <div className="text-2xl font-bold text-slate-600">{filteredStats.totalModules - filteredStats.completedModules}</div>
+                <div className="text-sm text-muted-foreground">Remaining</div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)]">
-          <h2 className="text-xl font-semibold tracking-tight mb-6">Progress by Group</h2>
-          <ResponsiveContainer width="100%" height={300}>
+        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_14px_30px_-24px_rgba(2,132,199,0.45)] backdrop-blur-xl transform-gpu">
+          {/* 3D Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 opacity-50 rounded-2xl"></div>
+          <div className="absolute inset-0 rounded-2xl border-2 border-white/20 shadow-inner"></div>
+          
+          <h2 className="text-xl font-semibold tracking-tight mb-6 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">Progress by Group</h2>
+          <ChartContainer
+            className="h-[300px] w-full"
+            config={{
+              completedModules: { label: 'Completed', color: 'var(--chart-1)' },
+              remaining: { label: 'Remaining', color: 'var(--muted-foreground)' },
+            }}
+          >
             <BarChart data={groupStats}>
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="completedModules" fill="#037b90" name="Completed" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="remaining" fill="#e5e7eb" name="Remaining" radius={[8, 8, 0, 0]} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="completedModules" fill="var(--color-completedModules)" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="remaining" fill="var(--color-remaining)" radius={[8, 8, 0, 0]} />
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </div>
 
-      <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_16px_34px_-24px_rgba(15,23,42,0.45)]">
+      <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_16px_34px_-24px_rgba(15,23,42,0.45)] backdrop-blur-xl transform-gpu">
         <h2 className="text-xl font-semibold tracking-tight mb-6">Daily Progress Tracker</h2>
         <div className="mb-4 text-sm text-muted-foreground">
-          Current Day: {stats.currentDay} of {workshop.numberOfDays} · Daily Target: {stats.dailyTarget} modules
+          Selected Day: {selectedDay} of {workshop.numberOfDays} · Daily Target: {stats.dailyTarget} modules
         </div>
         <div className="grid grid-cols-7 gap-4">
           {Array.from({ length: workshop.numberOfDays }, (_, i) => {
@@ -351,30 +328,39 @@ export function Dashboard() {
             const isFuture = day > stats.currentDay;
             const progress = !isFuture ? Math.min(stats.completedModules, target) : 0;
             const pct = target ? Math.round((progress / target) * 100) : 0;
-            
+
             return (
-              <div 
-                key={i} 
-                className={`p-4 rounded-xl border transition-all ${
-                  isCurrent 
-                    ? 'bg-primary/20 border-primary shadow-md scale-105 ring-1 ring-primary/30' 
-                    : isPast 
-                      ? 'bg-muted/50 border-border hover:border-primary/30 hover:bg-primary/5' 
-                      : 'bg-background border-border/50 opacity-60'
+              <button
+                key={i}
+                onClick={() => setSelectedDay(day)}
+                className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                  selectedDay === day
+                    ? 'bg-[#037b90]/20 border-[#037b90] shadow-xl scale-105 ring-2 ring-[#037b90]/30 hover:shadow-2xl hover:scale-110 hover:rotate-2'
+                    : isCurrent
+                      ? 'bg-primary/20 border-primary shadow-lg scale-102 ring-1 ring-primary/30 hover:shadow-xl hover:scale-110 hover:rotate-1'
+                      : isPast
+                        ? 'bg-muted/50 border-border hover:border-[#037b90]/50 hover:bg-[#037b90]/5 hover:shadow-md hover:scale-105 hover:-translate-y-1'
+                        : 'bg-card/40 border-border/50 hover:border-border/70 hover:bg-card/60 hover:shadow-md hover:scale-105 hover:-translate-y-1'
                 }`}
               >
                 <div className="text-sm mb-2 font-medium">
                   Day {day}
                   {isCurrent && <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">TODAY</span>}
+                  {selectedDay === day && !isCurrent && <span className="ml-1 text-xs bg-[#037b90] text-white px-1.5 py-0.5 rounded-full">SELECTED</span>}
                 </div>
-                <div className={`text-2xl mb-1 font-bold ${isCurrent ? 'text-primary' : ''}`}>{pct}%</div>
+                <div className={`text-2xl mb-1 font-bold ${selectedDay === day ? 'text-[#037b90]' : isCurrent ? 'text-primary' : ''}`}>{pct}%</div>
                 <div className="text-xs text-muted-foreground">{progress}/{target}</div>
                 {isCurrent && (
                   <div className="mt-2 text-xs text-primary font-medium">
                     {stats.isOnTrack ? 'On Track' : 'Behind Schedule'}
                   </div>
                 )}
-              </div>
+                {selectedDay === day && !isCurrent && (
+                  <div className="mt-2 text-xs text-[#037b90] font-medium">
+                    {isPast ? 'Past Day' : 'Future Day'}
+                  </div>
+                )}
+              </button>
             );
           })}
         </div>
@@ -480,13 +466,13 @@ export function Dashboard() {
                 i === 1 ? 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200' :
                 'bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200'
               }`}>
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white shadow-md">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-card shadow-md">
                   <span className="text-2xl">{i === 0 ? '' : i === 1 ? '' : ''}</span>
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-semibold text-lg">Group {g.group}</span>
-                    <span className="text-sm font-medium bg-white px-3 py-1 rounded-full shadow-sm">
+                    <span className="text-sm font-medium bg-card px-3 py-1 rounded-full shadow-sm">
                       {g.completionPercentage}%
                     </span>
                   </div>
@@ -659,59 +645,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Quick Actions Panel */}
-        <div className="bg-card/95 rounded-2xl p-6 border border-border/80 shadow-[0_16px_34px_-24px_rgba(15,23,42,0.45)]">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Zap className="w-6 h-6 text-primary" />
-              Quick Actions
-            </h2>
-            <div className="text-sm text-muted-foreground">Common tasks</div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <button 
-              onClick={() => navigate('/courses')}
-              className="flex flex-col items-center gap-2 p-4 bg-primary/10 border border-primary/20 rounded-xl hover:bg-primary/20 transition-colors shadow-sm"
-            >
-              <BookOpen className="w-6 h-6 text-primary" />
-              <span className="text-sm font-medium">Add Course</span>
-            </button>
-            <button 
-              onClick={() => navigate('/attendance')}
-              className="flex flex-col items-center gap-2 p-4 bg-chart-1/10 border border-chart-1/20 rounded-xl hover:bg-chart-1/20 transition-colors shadow-sm"
-            >
-              <Users className="w-6 h-6 text-chart-1" />
-              <span className="text-sm font-medium">Mark Attendance</span>
-            </button>
-            <button 
-              onClick={() => navigate('/reports')}
-              className="flex flex-col items-center gap-2 p-4 bg-chart-2/10 border border-chart-2/20 rounded-xl hover:bg-chart-2/20 transition-colors shadow-sm"
-            >
-              <FileText className="w-6 h-6 text-chart-2" />
-              <span className="text-sm font-medium">Generate Report</span>
-            </button>
-            <button 
-              onClick={() => setShowAnalyticsModal(true)}
-              className="flex flex-col items-center gap-2 p-4 bg-chart-3/10 border border-chart-3/20 rounded-xl hover:bg-chart-3/20 transition-colors shadow-sm"
-            >
-              <TrendingUp className="w-6 h-6 text-chart-3" />
-              <span className="text-sm font-medium">View Analytics</span>
-            </button>
-          </div>
-          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="w-5 h-5 text-amber-600" />
-              <span className="font-medium text-amber-800">Pending Tasks</span>
-            </div>
-            <div className="text-sm text-amber-700">
-              <ul className="space-y-1">
-                <li>3 courses pending review</li>
-                <li>2 attendance reports to approve</li>
-                <li>5 participants awaiting verification</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        <QuickActions className="lg:col-span-3" />
       </div>
 
       {/* Analytics Modal */}
@@ -805,14 +739,19 @@ export function Dashboard() {
                     <BarChart3 className="w-5 h-5 text-primary" />
                     Group Performance
                   </h3>
-                  <ResponsiveContainer width="100%" height={250}>
+                  <ChartContainer
+                    className="h-[250px] w-full"
+                    config={{
+                      completionPercentage: { label: 'Completion', color: 'var(--chart-1)' },
+                    }}
+                  >
                     <BarChart data={groupStats}>
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="completionPercentage" fill="#037b90" radius={[8, 8, 0, 0]} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="completionPercentage" fill="var(--color-completionPercentage)" radius={[8, 8, 0, 0]} />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                 </div>
               </div>
 
@@ -905,102 +844,6 @@ export function Dashboard() {
         </div>
       )}
 
-      {showProfileModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-xl font-semibold">Update Profile</h3>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="btn-icon p-2 hover:bg-muted"
-                aria-label="Close update profile"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Full Name</label>
-                <input
-                  value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  className="field"
-                  placeholder="Enter your full name"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Email</label>
-                <input
-                  type="email"
-                  value={profileEmail}
-                  onChange={(e) => setProfileEmail(e.target.value)}
-                  className="field"
-                  placeholder="Enter your email"
-                />
-              </div>
-              {profileError && <p className="text-sm text-destructive">{profileError}</p>}
-              <div className="flex justify-end gap-2 pt-2">
-                <button className="btn btn-muted" onClick={() => navigate('/dashboard')}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleSaveProfile}>Save Changes</button>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
-
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-xl font-semibold">Change Password</h3>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="btn-icon p-2 hover:bg-muted"
-                aria-label="Close password modal"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Current Password</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="field"
-                  placeholder="Current password"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="field"
-                  placeholder="New password"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Confirm New Password</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="field"
-                  placeholder="Confirm new password"
-                />
-              </div>
-              {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
-              <div className="flex justify-end gap-2 pt-2">
-                <button className="btn btn-muted" onClick={() => navigate('/dashboard')}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleChangePassword}>Update Password</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
