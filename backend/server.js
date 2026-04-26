@@ -1,0 +1,160 @@
+require('dotenv').config();
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
+
+const pool = require('./src/config/database');
+const logger = require('./src/utils/logger');
+
+// Import routes
+const authRoutes = require('./src/routes/auth');
+const userRoutes = require('./src/routes/users');
+const dataRoutes = require('./src/routes/data');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", process.env.FRONTEND_URL],
+    },
+  },
+}));
+
+// Compression middleware
+app.use(compression());
+
+// Cookie parser for refresh tokens
+app.use(cookieParser());
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/data', dataRoutes);
+
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      database: 'connected',
+      serverTime: result.rows[0].now
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'ERROR', 
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: error.message
+    });
+  }
+});
+
+// API documentation endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    name: 'OUK Digital Training System API',
+    version: '1.0.0',
+    description: 'Secure API for university training management',
+    endpoints: {
+      auth: '/api/auth',
+      users: '/api/users',
+      data: '/api/data'
+    },
+    health: '/api/health'
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ 
+    error: 'Route not found',
+    message: `Cannot ${req.method} ${req.path}`,
+    availableEndpoints: ['/api/auth', '/api/users', '/api/data', '/api/health']
+  });
+});
+
+// Global error handling middleware
+app.use((error, req, res, next) => {
+  logger.error('Unhandled Error:', {
+    error: error.message,
+    stack: error.stack,
+    url: req.url,
+    method: req.method
+  });
+  
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  
+  res.status(error.status || 500).json({
+    error: isDevelopment ? error.message : 'Internal server error',
+    ...(isDevelopment && { stack: error.stack })
+  });
+});
+
+// Graceful shutdown
+const gracefulShutdown = async (signal) => {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  
+  try {
+    await pool.end();
+    console.log('Database connections closed.');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 OUK Training System Server`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Server running on port ${PORT}`);
+  console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
+  console.log(`📊 Health Check: http://localhost:${PORT}/api/health`);
+  console.log(`🔐 Frontend URL: ${process.env.FRONTEND_URL}`);
+});
